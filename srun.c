@@ -24,8 +24,9 @@
 #include <stdarg.h>
 #include <time.h>
 
+#include "platform/compat.h"
+
 #include <cjson/cJSON.h>
-#include <curl/curl.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 
@@ -37,86 +38,6 @@
 
 #define CHALL_N "200"
 #define CHALL_TYPE "1"
-
-struct srun_context {
-  char *username;
-  char *password;
-  char *client_ip;
-  char *auth_server;
-
-  int ac_id;
-
-  int quiet;
-};
-
-struct chal_response {
-  char *challenge;
-  char *client_ip;
-};
-
-static int curl_req_err(srun_handle handle, CURLcode code) {
-  switch (code) {
-    case CURLE_OK:
-      return 0;
-    case CURLE_COULDNT_RESOLVE_HOST:
-      // srun_log_e(handle, "Could not resolve host %s. Are you connected to the right network?", handle->auth_server);
-      // fallthrough
-    default:
-      // srun_log_e(handle, "libcurl returned error %d: %s", code, curl_easy_strerror(code));
-      return 1;
-  }
-}
-
-static size_t curl_null_write_cb(const void *ptr, size_t size, size_t nmemb, void *userdata) {
-  (void)ptr;
-  (void)userdata;
-  return size * nmemb;
-}
-
-static int get_ac_id(srun_handle handle, int *ac_id) {
-  CURL *curl_handle = curl_easy_init();
-
-  // assume 1024 bytes is enough for the URL
-  char url_buf[1024];
-  strcpy(url_buf, handle->auth_server);
-
-  int retval = 0;
-
-  while (1) {
-    curl_easy_setopt(curl_handle, CURLOPT_URL, url_buf);
-    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_null_write_cb);
-
-    CURLcode res = curl_easy_perform(curl_handle);
-    if (res != CURLE_OK) {
-      // srun_log_e(handle, "Failed to fetch URL: %s", curl_easy_strerror(res));
-      retval = res;
-      break;
-    }
-
-    char *new_url;
-    curl_easy_getinfo(curl_handle, CURLINFO_REDIRECT_URL, &new_url);
-    if (!new_url) {
-      // srun_log_e(handle, "No redirect URL found");
-      retval = CURLE_HTTP_RETURNED_ERROR;
-      break;
-    } else if (strcmp(new_url, url_buf) == 0) {
-      // srun_log_e(handle, "Redirect loop detected");
-      retval = CURLE_HTTP_RETURNED_ERROR;
-      break;
-    } else {
-      const char *ac_id_str = strstr(new_url, "ac_id=");
-      if (ac_id_str) {
-        *ac_id = atoi(ac_id_str + 6);
-        break;
-      } else {
-        strcpy(url_buf, new_url);
-      }
-    }
-  }
-
-  curl_easy_cleanup(curl_handle);
-  return retval;
-}
 
 /**
  * @brief Encodes a message into a 32-bit integer array.
@@ -359,20 +280,8 @@ int srun_login(srun_handle handle) {
   asprintf(&challenge_url, chal_fmtstr, handle->auth_server, handle->username, handle->client_ip, req_time);
 
   // 2. perform challenge request and get response
-  CURL *curl_handle = curl_easy_init();
-  FILE *resp_file = tmpfile();
-  curl_easy_setopt(curl_handle, CURLOPT_URL, challenge_url);
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, resp_file);
-  curl_easy_perform(curl_handle);
-  curl_easy_cleanup(curl_handle);
+  char *resp_buf = request_get(challenge_url);
   free(challenge_url);
-
-  long resp_size = ftell(resp_file);
-  rewind(resp_file);
-  char *resp_buf = malloc(resp_size + 1);
-  fread(resp_buf, 1, resp_size, resp_file);
-  resp_buf[resp_size] = '\0';
-  fclose(resp_file);
 
   // TODO error handling
   char *json_start = strchr(resp_buf, '{');
@@ -403,6 +312,7 @@ int srun_login(srun_handle handle) {
     snprintf(md5_buf + 2 * i, 3, "%02hhx", (uint8_t)md5_buf[md_len + i]);
   }
 
+  // FIXME
   handle->client_ip = strdup(chall.client_ip);
 
   // 4.2. info field
@@ -473,25 +383,12 @@ int srun_login(srun_handle handle) {
   fprintf(stderr, "Portal request URL: %s\n", portal_url);
 
   // 6. perform portal request
-  curl_handle = curl_easy_init();
-  resp_file = tmpfile();
-  curl_easy_setopt(curl_handle, CURLOPT_URL, portal_url);
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, resp_file);
-  curl_easy_perform(curl_handle);
-  curl_easy_cleanup(curl_handle);
+  resp_buf = request_get(portal_url);
   free(portal_url);
-
-  // 7. parse portal response
-  fseek(resp_file, 0, SEEK_END);
-  resp_size = ftell(resp_file);
-  fseek(resp_file, 0, SEEK_SET);
-  resp_buf = malloc(resp_size + 1);
-  fread(resp_buf, 1, resp_size, resp_file);
-  resp_buf[resp_size] = '\0';
-  fclose(resp_file);
 
   fprintf(stderr, "Portal response: %s\n", resp_buf);
 
   // TODO
+  free(resp_buf);
   return -1;
 }
