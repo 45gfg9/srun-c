@@ -56,10 +56,10 @@ typedef enum srun_option {
   SRUNOPT_CLIENT_IP,
 
   /**
-   * Verbose mode. Optional. Default to 0.
+   * Quiet mode. Suppresses all logs.
    * Type: int
    */
-  SRUNOPT_VERBOSITY,
+  SRUNOPT_QUIET,
 } srun_option;
 
 /**
@@ -78,17 +78,17 @@ typedef enum srun_option {
 #define SRUNE_INVALID_CTX (-2)
 
 /**
- * Create a new Srun handle. This handle must be freed by `srun_cleanup`.
+ * Create a new srun handle. This handle must be freed by `srun_cleanup`.
  *
- * @return A new Srun handle
+ * @return A new srun handle
  */
-srun_handle srun_create();
+srun_handle srun_create(void);
 
 void srun_setopt(srun_handle handle, srun_option option, ...);
 /**
- * Set option of Srun handle.
+ * Set option of srun handle.
  *
- * @param context Srun context
+ * @param context srun context
  * @param option
  * @param value
  */
@@ -97,7 +97,7 @@ void srun_setopt(srun_handle handle, srun_option option, ...);
 /**
  * Perform login. The username, password and auth server must be set.
  *
- * @param handle Srun handle
+ * @param handle srun handle
  * @return SRUNE_OK if logged in successfully or device already online;
  *         gateway error code or library defined error code otherwise
  */
@@ -109,7 +109,7 @@ int srun_login(srun_handle handle);
  * Auth server needs to be set; the certificate must be set too if the server uses HTTPS.
  * No other fields are required.
  *
- * @param handle Srun handle
+ * @param handle srun handle
  * @return SRUNE_OK if logged out successfully;
  *         SRUNE_NETWORK if network error
  */
@@ -118,7 +118,7 @@ int srun_logout(srun_handle handle);
 /**
  * Free all allocated resources held by this handle. You are encouraged to set handle to NULL after this call.
  *
- * @param context Srun context
+ * @param context srun context
  */
 void srun_cleanup(srun_handle context);
 
