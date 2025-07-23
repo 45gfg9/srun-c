@@ -17,7 +17,7 @@ project(srun VERSION 0.13)
 #set(SRUN_CONF_DEFAULT_CLIENT_IP "0.0.0.0")
 
 set(CMAKE_C_STANDARD 11)
-add_executable(${PROJECT_NAME} platform/libcurl.c platform/cjson.c srun.c main.c)
+add_executable(${PROJECT_NAME} platform/libcurl.c platform/openssl.c platform/cjson.c srun.c main.c)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")

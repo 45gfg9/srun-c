@@ -7,6 +7,7 @@
 #ifndef __SRUN_PLATFORM_COMPAT_H__
 #define __SRUN_PLATFORM_COMPAT_H__
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <errno.h>
 #include "../srun.h"
@@ -58,5 +59,28 @@ int parse_chal_response(struct chal_response *response, const char *json);
  * The caller is responsible for freeing the returned string.
  */
 char *create_info_field(srun_handle handle);
+
+/**
+ * Computes the SHA-1 digest of the given data.
+ *
+ * @param data The input data to hash.
+ * @param len The length of the input data.
+ * @param digest A buffer to hold the resulting SHA-1 digest (20 bytes).
+ * @returns The length of the digest (20), or 0 on error, in which case errno is set appropriately.
+ */
+size_t sha1_digest(const uint8_t *data, size_t len, uint8_t digest[static 20]);
+
+/**
+ * Computes the HMAC-MD5 digest of the given data using the specified key.
+ *
+ * @param key The HMAC key.
+ * @param key_len The length of the key.
+ * @param data The input data to hash.
+ * @param data_len The length of the input data.
+ * @param digest A buffer to hold the resulting HMAC-MD5 digest (16 bytes).
+ * @returns The length of the digest (16), or 0 on error, in which case errno is set appropriately.
+ */
+size_t hmac_md5_digest(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len,
+                       uint8_t digest[static 16]);
 
 #endif

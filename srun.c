@@ -26,9 +26,6 @@
 
 #include "platform/compat.h"
 
-#include <openssl/evp.h>
-#include <openssl/hmac.h>
-
 #define srun_digest_update(hashctx, data, len) EVP_DigestUpdate((hashctx), (data), (len))
 
 #define PATH_GET_CHAL "/cgi-bin/get_challenge"
@@ -265,10 +262,23 @@ void srun_setopt(srun_handle handle, srun_option option, ...) {
   va_end(args);
 }
 
+static int json_strip_callback(char *buf) {
+  char *json_start = strchr(buf, '{');
+  char *json_end = strrchr(buf, '}');
+  if (json_start && json_end && json_end > json_start) {
+    memmove(buf, json_start, json_end - json_start + 1);
+    buf[json_end - json_start + 1] = '\0';
+    return 0;
+  } else {
+    return -1; // Invalid JSON format
+  }
+}
+
 int srun_login(srun_handle handle) {
   if (!(handle->auth_server && handle->username && handle->password)) {
     return SRUNE_INVALID_CTX;
   }
+  handle->ac_id = 3;
 
   // 1. construct challenge request URL
   // callback parameter serves no purpose
@@ -283,10 +293,9 @@ int srun_login(srun_handle handle) {
   free(challenge_url);
 
   // TODO error handling
-  char *json_start = strchr(resp_buf, '{');
-  char *json_end = strrchr(resp_buf, '}');
-  memmove(resp_buf, json_start, json_end - json_start + 1);
-  resp_buf[json_end - json_start + 1] = '\0';
+  if (json_strip_callback(resp_buf) != 0) {
+    abort(); // FIXME
+  }
 
   fprintf(stderr, "Challenge response: %s\n", resp_buf);
 
@@ -302,13 +311,13 @@ int srun_login(srun_handle handle) {
   // 4. construct challenge response
 
   // 4.1. HMAC-MD5 of the user password
-  char md5_buf[33];
-  unsigned int md_len = sizeof md5_buf / 2;
+  uint8_t hmac_md5_buf[16];
+  char hmac_md5_hex[33];
 
-  HMAC(EVP_md5(), chall.challenge, (int)chall_length, (const uint8_t *)handle->password, strlen(handle->password),
-       (uint8_t *)md5_buf + md_len, &md_len);
-  for (unsigned int i = 0; i < md_len; i++) {
-    snprintf(md5_buf + 2 * i, 3, "%02hhx", (uint8_t)md5_buf[md_len + i]);
+  hmac_md5_digest((const uint8_t *)handle->password, strlen(handle->password), (const uint8_t *)chall.challenge,
+                  chall_length, hmac_md5_buf);
+  for (unsigned int i = 0; i < 16; i++) {
+    snprintf(&hmac_md5_hex[2 * i], 3, "%02hhx", hmac_md5_buf[i]);
   }
 
   // FIXME
@@ -330,34 +339,37 @@ int srun_login(srun_handle handle) {
                    - 1; // exclude the trailing '\0'
 
   // 4.5. the SHA-1 checksum
-  EVP_MD_CTX *hashctx = EVP_MD_CTX_new();
-  EVP_MD_CTX_reset(hashctx);
-  EVP_DigestInit(hashctx, EVP_sha1());
+  char ac_id_str[12];
+  snprintf(ac_id_str, sizeof ac_id_str, "%d", handle->ac_id);
 
-  EVP_DigestUpdate(hashctx, chall.challenge, chall_length);
-  EVP_DigestUpdate(hashctx, handle->username, strlen(handle->username));
-  EVP_DigestUpdate(hashctx, chall.challenge, chall_length);
-  EVP_DigestUpdate(hashctx, md5_buf, 32);
-  EVP_DigestUpdate(hashctx, chall.challenge, chall_length);
-  EVP_DigestUpdate(hashctx, "3", 1); // ac_id
-  EVP_DigestUpdate(hashctx, chall.challenge, chall_length);
-  EVP_DigestUpdate(hashctx, handle->client_ip, strlen(handle->client_ip));
-  EVP_DigestUpdate(hashctx, chall.challenge, chall_length);
-  EVP_DigestUpdate(hashctx, CHALL_N, strlen(CHALL_N)); // n
-  EVP_DigestUpdate(hashctx, chall.challenge, chall_length);
-  EVP_DigestUpdate(hashctx, CHALL_TYPE, strlen(CHALL_TYPE)); // type
-  EVP_DigestUpdate(hashctx, chall.challenge, chall_length);
-  EVP_DigestUpdate(hashctx, b64_encoded_info, b64_len + 7); // info
+  size_t sha1_msglen = 32                          // hmac_md5_hex length
+                       + strlen(handle->username)  // username length
+                       + strlen(handle->client_ip) // client_ip length
+                       + strlen(ac_id_str)         // ac_id length
+                       + strlen(CHALL_N)           // n length
+                       + strlen(CHALL_TYPE)        // type length
+                       + b64_len + 7               // info length (b64_encoded_info + 7 for "{SRBX1}")
+                       + 7 * chall_length;         // 7 occurrences of chall.challenge
 
-  char sha1_buf[41];
-  md_len = sizeof sha1_buf / 2;
-  EVP_DigestFinal(hashctx, (uint8_t *)sha1_buf + md_len, &md_len);
-  for (unsigned int i = 0; i < md_len; i++) {
-    snprintf(sha1_buf + 2 * i, 3, "%02hhx", (uint8_t)sha1_buf[md_len + i]);
+  char *sha1_msgbuf = malloc(sha1_msglen + 1);
+  snprintf(sha1_msgbuf, sha1_msglen + 1, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s", chall.challenge, handle->username,
+           chall.challenge, hmac_md5_hex, chall.challenge, ac_id_str, chall.challenge, handle->client_ip,
+           chall.challenge, CHALL_N, chall.challenge, CHALL_TYPE, chall.challenge, b64_encoded_info);
+
+  free(chall.challenge);
+  free(chall.client_ip);
+  chall.challenge = NULL;
+  chall.client_ip = NULL;
+
+  uint8_t sha1_buf[20];
+  char sha1_hex[41];
+  sha1_digest((const uint8_t *)sha1_msgbuf, sha1_msglen, sha1_buf);
+  for (unsigned int i = 0; i < sizeof sha1_buf; i++) {
+    snprintf(&sha1_hex[2 * i], 3, "%02hhx", sha1_buf[i]);
   }
-  EVP_MD_CTX_free(hashctx);
+  free(sha1_msgbuf);
 
-  fprintf(stderr, "check_sum: %s\n", sha1_buf);
+  fprintf(stderr, "check_sum: %s\n", sha1_hex);
   fprintf(stderr, "b64_encoded_info: %zu %s\n", b64_len + 7, b64_encoded_info);
 
   // 5. construct portal request URL
@@ -367,8 +379,8 @@ int srun_login(srun_handle handle) {
       "%s" PATH_PORTAL "?callback=jQuery98&action=login&n=200&type=1&os=Linux&name=Linux&double_stack=0"
       "&_=%llu000&username=%s&password=%%7BMD5%%7D%s&ac_id=%d&ip=%s&chksum=%s&info=%s";
   char *portal_url;
-  asprintf(&portal_url, portal_fmtstr, handle->auth_server, req_time, handle->username, md5_buf, 3, handle->client_ip,
-           sha1_buf, url_encoded_info);
+  asprintf(&portal_url, portal_fmtstr, handle->auth_server, req_time, handle->username, hmac_md5_hex, 3,
+           handle->client_ip, sha1_hex, url_encoded_info);
   free(url_encoded_info);
 
   fprintf(stderr, "Portal request URL: %s\n", portal_url);
