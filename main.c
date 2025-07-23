@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <curl/curl.h>
+#include <cjson/cJSON.h>
 
 #if defined __APPLE__
 #include <readpassphrase.h>
@@ -134,8 +135,35 @@ static void print_help(void) {
 }
 
 static void parse_config(const char *path) {
-  puts("config");
-  // TODO
+  FILE *f = fopen(path, "r");
+  if (!f) {
+    perror(prog_name);
+    exit(-1);
+  }
+  // read file contents
+  fseek(f, 0, SEEK_END);
+  size_t size = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  char *buf = malloc(size + 1);
+  if (!buf) {
+    perror(prog_name);
+    fclose(f);
+    exit(-1);
+  }
+  if (fread(buf, 1, size, f) != size) {
+    perror(prog_name);
+    fclose(f);
+    free(buf);
+    exit(-1);
+  }
+  fclose(f);
+
+  cJSON *root = cJSON_Parse(buf);
+  free(buf);
+  if (!root) {
+    fprintf(stderr, "Invalid JSON: %s\n", path);
+    exit(-1);
+  }
 }
 
 static char *read_cert_file(const char *path) {
@@ -258,13 +286,14 @@ static int perform_login(srun_handle handle) {
 }
 
 static int perform_logout(srun_handle handle) {
-  int result = srun_logout(handle);
-  if (result == SRUNE_OK && cli_args.verbosity > -1) {
-    fprintf(stderr, "Successfully logged out.\n");
-  } else if (result != SRUNE_OK && cli_args.verbosity > -2) {
-    fprintf(stderr, "Logout failed: error %d\n", result);
-  }
-  return result;
+  // int result = srun_logout(handle);
+  // if (result == SRUNE_OK && cli_args.verbosity > -1) {
+  //   fprintf(stderr, "Successfully logged out.\n");
+  // } else if (result != SRUNE_OK && cli_args.verbosity > -2) {
+  //   fprintf(stderr, "Logout failed: error %d\n", result);
+  // }
+  // return result;
+  return -1;
 }
 
 int main(int argc, char **argv) {
@@ -327,8 +356,8 @@ help_guide:
   srun_setopt(handle, SRUNOPT_USERNAME, cli_args.username);
   srun_setopt(handle, SRUNOPT_PASSWORD, cli_args.password);
   srun_setopt(handle, SRUNOPT_CLIENT_IP, cli_args.client_ip);
-  srun_setopt(handle, SRUNOPT_SERVER_CERT, cli_args.cert_pem);
-  srun_setopt(handle, SRUNOPT_VERBOSITY, cli_args.verbosity);
+  // srun_setopt(handle, SRUNOPT_SERVER_CERT, cli_args.cert_pem);
+  // srun_setopt(handle, SRUNOPT_VERBOSITY, cli_args.verbosity);
 
   if (action == ACTION_LOGIN) {
     retval = perform_login(handle) != SRUNE_OK;

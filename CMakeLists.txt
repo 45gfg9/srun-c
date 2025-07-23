@@ -17,8 +17,14 @@ project(srun VERSION 0.13)
 #set(SRUN_CONF_DEFAULT_CLIENT_IP "0.0.0.0")
 
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_EXTENSIONS OFF)
 add_executable(${PROJECT_NAME} srun.c main.c)
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fsanitize=address,undefined -fstack-protector-all -fno-omit-frame-pointer -ggdb")
+if (LINUX)
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fsanitize=leak")
+endif ()
 
 # find current Git revision
 find_package(Git)

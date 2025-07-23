@@ -38,7 +38,7 @@ typedef enum srun_option {
    * On ESP32, see also SRUNOPT_USE_ESP_CRT_BUNDLE.
    * Type: const char *
    */
-  SRUNOPT_SERVER_CERT,
+  // SRUNOPT_SERVER_CERT,
 
   /**
    * Set to 1 to use ESP x509 certificate bundle.
@@ -46,7 +46,7 @@ typedef enum srun_option {
    * Setting this option on non-ESP platforms will have no effect.
    * Type: int
    */
-  SRUNOPT_USE_ESP_CRT_BUNDLE,
+  // SRUNOPT_USE_ESP_CRT_BUNDLE,
 
   /**
    * Client IP. Optional for login.

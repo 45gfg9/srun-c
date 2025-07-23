@@ -4,8 +4,17 @@
  * as published by Sam Hocevar. See the LICENSE file for more details.
  */
 
+// see asprintf(3)
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE
+#endif
+
+// see strdup(3)
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 600
 #endif
 
 #include "srun.h"
@@ -13,6 +22,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdarg.h>
+#include <time.h>
 
 #include <cjson/cJSON.h>
 #include <curl/curl.h>
@@ -33,12 +43,15 @@ struct srun_context {
   char *password;
   char *client_ip;
   char *auth_server;
-  const char *server_cert;
 
   int ac_id;
 
   int quiet;
-  int esp_use_crt_bundle;
+};
+
+struct chal_response {
+  char *challenge;
+  char *client_ip;
 };
 
 static int curl_req_err(srun_handle handle, CURLcode code) {
@@ -46,10 +59,10 @@ static int curl_req_err(srun_handle handle, CURLcode code) {
     case CURLE_OK:
       return 0;
     case CURLE_COULDNT_RESOLVE_HOST:
-      srun_log_e(handle, "Could not resolve host %s. Are you connected to the right network?", handle->auth_server);
+      // srun_log_e(handle, "Could not resolve host %s. Are you connected to the right network?", handle->auth_server);
       // fallthrough
     default:
-      srun_log_e(handle, "libcurl returned error %d: %s", code, curl_easy_strerror(code));
+      // srun_log_e(handle, "libcurl returned error %d: %s", code, curl_easy_strerror(code));
       return 1;
   }
 }
@@ -75,7 +88,7 @@ static int get_ac_id(srun_handle handle, int *ac_id) {
 
     CURLcode res = curl_easy_perform(curl_handle);
     if (res != CURLE_OK) {
-      srun_log_e(handle, "Failed to fetch URL: %s", curl_easy_strerror(res));
+      // srun_log_e(handle, "Failed to fetch URL: %s", curl_easy_strerror(res));
       retval = res;
       break;
     }
@@ -83,11 +96,11 @@ static int get_ac_id(srun_handle handle, int *ac_id) {
     char *new_url;
     curl_easy_getinfo(curl_handle, CURLINFO_REDIRECT_URL, &new_url);
     if (!new_url) {
-      srun_log_e(handle, "No redirect URL found");
+      // srun_log_e(handle, "No redirect URL found");
       retval = CURLE_HTTP_RETURNED_ERROR;
       break;
     } else if (strcmp(new_url, url_buf) == 0) {
-      srun_log_e(handle, "Redirect loop detected");
+      // srun_log_e(handle, "Redirect loop detected");
       retval = CURLE_HTTP_RETURNED_ERROR;
       break;
     } else {
@@ -278,14 +291,6 @@ char *url_encode(const char *str) {
   return enc;
 }
 
-static char *srun_strdup(const char *str) {
-  char *ret = malloc(strlen(str) + 1);
-  if (ret) {
-    strcpy(ret, str);
-  }
-  return ret;
-}
-
 srun_handle srun_create(void) {
   // allocate a new context
   srun_handle handle = calloc(1, sizeof(struct srun_context));
@@ -327,12 +332,6 @@ void srun_setopt(srun_handle handle, srun_option option, ...) {
       handle->password = realloc(handle->password, strlen(src_str) + 1);
       strcpy(handle->password, src_str);
       break;
-    case SRUNOPT_SERVER_CERT:
-      handle->server_cert = va_arg(args, const char *);
-      break;
-    case SRUNOPT_USE_ESP_CRT_BUNDLE:
-      handle->esp_use_crt_bundle = va_arg(args, int);
-      break;
     case SRUNOPT_CLIENT_IP:
       src_str = va_arg(args, char *);
       handle->client_ip = realloc(handle->client_ip, strlen(src_str) + 1);
@@ -347,10 +346,152 @@ void srun_setopt(srun_handle handle, srun_option option, ...) {
 }
 
 int srun_login(srun_handle handle) {
-  // first, retrieve challenge string
-  // construct target url
-
   if (!(handle->auth_server && handle->username && handle->password)) {
     return SRUNE_INVALID_CTX;
   }
+
+  // 1. construct challenge request URL
+  // callback parameter serves no purpose
+  unsigned long long req_time = (unsigned long long)time(NULL);
+  const char *const chal_fmtstr = "%s" PATH_GET_CHAL "?callback=jQuery98"
+                                  "&username=%s&ip=%s&_=%llu000";
+  char *challenge_url;
+  asprintf(&challenge_url, chal_fmtstr, handle->auth_server, handle->username, handle->client_ip, req_time);
+
+  // 2. perform challenge request and get response
+  CURL *curl_handle = curl_easy_init();
+  FILE *resp_file = tmpfile();
+  curl_easy_setopt(curl_handle, CURLOPT_URL, challenge_url);
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, resp_file);
+  curl_easy_perform(curl_handle);
+  curl_easy_cleanup(curl_handle);
+  free(challenge_url);
+
+  long resp_size = ftell(resp_file);
+  rewind(resp_file);
+  char *resp_buf = malloc(resp_size + 1);
+  fread(resp_buf, 1, resp_size, resp_file);
+  resp_buf[resp_size] = '\0';
+  fclose(resp_file);
+
+  // TODO error handling
+  char *json_start = strchr(resp_buf, '{');
+  char *json_end = strrchr(resp_buf, '}');
+  memmove(resp_buf, json_start, json_end - json_start + 1);
+  resp_buf[json_end - json_start + 1] = '\0';
+
+  fprintf(stderr, "Challenge response: %s\n", resp_buf);
+
+  // 3. parse challenge response
+  struct chal_response chall;
+  cJSON *root = cJSON_Parse(resp_buf);
+  chall.challenge = cJSON_GetStringValue(cJSON_GetObjectItem(root, "challenge"));
+  chall.client_ip = cJSON_GetStringValue(cJSON_GetObjectItem(root, "client_ip"));
+  size_t chall_length = strlen(chall.challenge);
+
+  free(resp_buf);
+
+  // 4. construct challenge response
+
+  // 4.1. HMAC-MD5 of the user password
+  char md5_buf[33];
+  unsigned int md_len = sizeof md5_buf / 2;
+
+  HMAC(EVP_md5(), chall.challenge, (int)chall_length, (const uint8_t *)handle->password, strlen(handle->password),
+       (uint8_t *)md5_buf + md_len, &md_len);
+  for (unsigned int i = 0; i < md_len; i++) {
+    snprintf(md5_buf + 2 * i, 3, "%02hhx", (uint8_t)md5_buf[md_len + i]);
+  }
+
+  handle->client_ip = strdup(chall.client_ip);
+
+  // 4.2. info field
+  cJSON *info = cJSON_CreateObject();
+  cJSON_AddStringToObject(info, "username", handle->username);
+  cJSON_AddStringToObject(info, "password", handle->password);
+  cJSON_AddStringToObject(info, "ip", handle->client_ip);
+  cJSON_AddNumberToObject(info, "acid", 3);
+  cJSON_AddStringToObject(info, "enc_ver", "srun_bx1");
+  char *info_str = cJSON_PrintUnformatted(info);
+  cJSON_Delete(info);
+
+  // 4.3. x_encode the info field
+  uint8_t x_encoded_info[128];
+  size_t x_encoded_info_len = x_encode((uint8_t *)info_str, strlen(info_str), (const uint8_t *)chall.challenge,
+                                       strlen(chall.challenge), x_encoded_info, sizeof x_encoded_info);
+  free(info_str);
+
+  // 4.4. Base64 encode the x_encoded_info for updated info field
+  char b64_encoded_info[256] = "{SRBX1}";
+  size_t b64_len = b64_encode("LVoJPiCN2R8G90yg+hmFHuacZ1OWMnrsSTXkYpUq/3dlbfKwv6xztjI7DeBE45QA", '=', x_encoded_info,
+                              x_encoded_info_len, b64_encoded_info + 7, sizeof b64_encoded_info - 7)
+                   - 1; // exclude the trailing '\0'
+
+  // 4.5. the SHA-1 checksum
+  EVP_MD_CTX *hashctx = EVP_MD_CTX_new();
+  EVP_MD_CTX_reset(hashctx);
+  EVP_DigestInit(hashctx, EVP_sha1());
+
+  EVP_DigestUpdate(hashctx, chall.challenge, chall_length);
+  EVP_DigestUpdate(hashctx, handle->username, strlen(handle->username));
+  EVP_DigestUpdate(hashctx, chall.challenge, chall_length);
+  EVP_DigestUpdate(hashctx, md5_buf, 32);
+  EVP_DigestUpdate(hashctx, chall.challenge, chall_length);
+  EVP_DigestUpdate(hashctx, "3", 1); // ac_id
+  EVP_DigestUpdate(hashctx, chall.challenge, chall_length);
+  EVP_DigestUpdate(hashctx, handle->client_ip, strlen(handle->client_ip));
+  EVP_DigestUpdate(hashctx, chall.challenge, chall_length);
+  EVP_DigestUpdate(hashctx, CHALL_N, strlen(CHALL_N)); // n
+  EVP_DigestUpdate(hashctx, chall.challenge, chall_length);
+  EVP_DigestUpdate(hashctx, CHALL_TYPE, strlen(CHALL_TYPE)); // type
+  EVP_DigestUpdate(hashctx, chall.challenge, chall_length);
+  EVP_DigestUpdate(hashctx, b64_encoded_info, b64_len + 7); // info
+
+  char sha1_buf[41];
+  md_len = sizeof sha1_buf / 2;
+  EVP_DigestFinal(hashctx, (uint8_t *)sha1_buf + md_len, &md_len);
+  for (unsigned int i = 0; i < md_len; i++) {
+    snprintf(sha1_buf + 2 * i, 3, "%02hhx", (uint8_t)sha1_buf[md_len + i]);
+  }
+  EVP_MD_CTX_free(hashctx);
+  cJSON_Delete(root);
+
+  fprintf(stderr, "check_sum: %s\n", sha1_buf);
+  fprintf(stderr, "b64_encoded_info: %zu %s\n", b64_len + 7, b64_encoded_info);
+
+  // 5. construct portal request URL
+  char *url_encoded_info = url_encode(b64_encoded_info);
+
+  const char *const portal_fmtstr =
+      "%s" PATH_PORTAL "?callback=jQuery98&action=login&n=200&type=1&os=Linux&name=Linux&double_stack=0"
+      "&_=%llu000&username=%s&password=%%7BMD5%%7D%s&ac_id=%d&ip=%s&chksum=%s&info=%s";
+  char *portal_url;
+  asprintf(&portal_url, portal_fmtstr, handle->auth_server, req_time, handle->username, md5_buf, 3, handle->client_ip,
+           sha1_buf, url_encoded_info);
+  free(url_encoded_info);
+
+  fprintf(stderr, "Portal request URL: %s\n", portal_url);
+
+  // 6. perform portal request
+  curl_handle = curl_easy_init();
+  resp_file = tmpfile();
+  curl_easy_setopt(curl_handle, CURLOPT_URL, portal_url);
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, resp_file);
+  curl_easy_perform(curl_handle);
+  curl_easy_cleanup(curl_handle);
+  free(portal_url);
+
+  // 7. parse portal response
+  fseek(resp_file, 0, SEEK_END);
+  resp_size = ftell(resp_file);
+  fseek(resp_file, 0, SEEK_SET);
+  resp_buf = malloc(resp_size + 1);
+  fread(resp_buf, 1, resp_size, resp_file);
+  resp_buf[resp_size] = '\0';
+  fclose(resp_file);
+
+  fprintf(stderr, "Portal response: %s\n", resp_buf);
+
+  // TODO
+  return -1;
 }
