@@ -36,4 +36,27 @@ struct chal_response {
  */
 char *request_get(const char *url);
 
+/**
+ * Parses the JSON response from the challenge request.
+ *
+ * @param json The JSON response to parse. It can be freed after use.
+ * @param response A struct to hold the parsed challenge information.
+ * Members of the struct must be freed by the caller.
+ * If an error occurs, the struct is not modified.
+ * @returns 0 on success, or -1 on error, in which case errno is set appropriately.
+ */
+int parse_chal_response(struct chal_response *response, const char *json);
+
+/**
+ * Creates the info field for the portal request.
+ *
+ * @param handle The srun handle.
+ * @param challenge The challenge string.
+ * @param chall_length The length of the challenge string.
+ * @returns A newly allocated string containing the info field, or NULL on error,
+ * in which case errno is set appropriately.
+ * The caller is responsible for freeing the returned string.
+ */
+char *create_info_field(srun_handle handle);
+
 #endif

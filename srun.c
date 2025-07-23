@@ -26,7 +26,6 @@
 
 #include "platform/compat.h"
 
-#include <cjson/cJSON.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 
@@ -293,9 +292,9 @@ int srun_login(srun_handle handle) {
 
   // 3. parse challenge response
   struct chal_response chall;
-  cJSON *root = cJSON_Parse(resp_buf);
-  chall.challenge = cJSON_GetStringValue(cJSON_GetObjectItem(root, "challenge"));
-  chall.client_ip = cJSON_GetStringValue(cJSON_GetObjectItem(root, "client_ip"));
+  if (parse_chal_response(&chall, resp_buf) != 0) {
+    abort(); // FIXME
+  }
   size_t chall_length = strlen(chall.challenge);
 
   free(resp_buf);
@@ -316,14 +315,7 @@ int srun_login(srun_handle handle) {
   handle->client_ip = strdup(chall.client_ip);
 
   // 4.2. info field
-  cJSON *info = cJSON_CreateObject();
-  cJSON_AddStringToObject(info, "username", handle->username);
-  cJSON_AddStringToObject(info, "password", handle->password);
-  cJSON_AddStringToObject(info, "ip", handle->client_ip);
-  cJSON_AddNumberToObject(info, "acid", 3);
-  cJSON_AddStringToObject(info, "enc_ver", "srun_bx1");
-  char *info_str = cJSON_PrintUnformatted(info);
-  cJSON_Delete(info);
+  char *info_str = create_info_field(handle);
 
   // 4.3. x_encode the info field
   uint8_t x_encoded_info[128];
@@ -364,7 +356,6 @@ int srun_login(srun_handle handle) {
     snprintf(sha1_buf + 2 * i, 3, "%02hhx", (uint8_t)sha1_buf[md_len + i]);
   }
   EVP_MD_CTX_free(hashctx);
-  cJSON_Delete(root);
 
   fprintf(stderr, "check_sum: %s\n", sha1_buf);
   fprintf(stderr, "b64_encoded_info: %zu %s\n", b64_len + 7, b64_encoded_info);
