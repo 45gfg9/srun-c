@@ -1,6 +1,6 @@
-# Srun
+# srun-c
 
-Yet another Srun login utility, but written in C and with ESP32 support.
+Yet another **srun** login utility, but written in C and with ESP32 support.
 
 The main files `srun.h` and `srun.c` can be dropped into an existing project and compile along with it. You may also build an executable directly for your OS.
 
