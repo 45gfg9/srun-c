@@ -321,7 +321,7 @@ static int get_ac_id(srun_handle handle) {
 
     if (!location) {
       fprintf(stderr, "Failed to guess ac_id. Login is very likely to fail.\n");
-      return SRUNE_OK; // continue with unknown ac_id
+      return SRUN_AC_ID_UNKNOWN;
     }
 
     char *query = strchr(location, '?');
@@ -329,10 +329,10 @@ static int get_ac_id(srun_handle handle) {
       *query = '&'; // for easier parsing if ?ac_id=
       char *ac_id_str = strstr(query, "&ac_id=");
       if (ac_id_str) {
-        handle->ac_id = (int)strtol(ac_id_str + 7, NULL, 10);
+        int ac_id = (int)strtol(ac_id_str + 7, NULL, 10);
         free(location);
-        srun_log_verbose(handle->verbosity, "Guessed ac_id: %d\n", handle->ac_id);
-        return SRUNE_OK;
+        srun_log_verbose(handle->verbosity, "Guessed ac_id: %d\n", ac_id);
+        return ac_id;
       }
     }
 
@@ -368,10 +368,7 @@ int srun_login(srun_handle handle) {
 
   if (handle->ac_id == SRUN_AC_ID_UNKNOWN) {
     // if ac_id is not set, try to get it from the server
-    int retval = get_ac_id(handle);
-    if (retval != SRUNE_OK) {
-      return retval;
-    }
+    handle->ac_id = get_ac_id(handle);
   }
 
   // 1. construct challenge request URL
