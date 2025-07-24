@@ -15,7 +15,7 @@ enum srun_verbosity {
   /**
    * @brief Suppress stdout. Errors will be printed to stderr.
    */
-  SRUN_VERBOSITY_SILENT = -1,
+  SRUN_VERBOSITY_SILENT,
 
   /**
    * @brief Print connection status to stdout.
@@ -53,6 +53,12 @@ typedef enum srun_option {
    * Type: char *
    */
   SRUNOPT_PASSWORD,
+
+  /**
+   * ac_id. Required for login.
+   * Type: int
+   */
+  SRUNOPT_AC_ID,
 
   /**
    * Server certificate. PEM format. This field is NOT copied.

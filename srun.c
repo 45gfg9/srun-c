@@ -236,39 +236,41 @@ void srun_cleanup(srun_handle handle) {
 }
 
 void srun_setopt(srun_handle handle, srun_option option, ...) {
+  if (!handle) {
+    errno = EINVAL;
+    return;
+  }
+
   va_list args;
   va_start(args, option);
 
-  const char *src_str;
-
+  // on out of memory, strdup will set errno to ENOMEM
   switch (option) {
     case SRUNOPT_AUTH_SERVER:
-      src_str = va_arg(args, char *);
       free(handle->auth_server);
-      handle->auth_server = strdup(src_str);
+      handle->auth_server = strdup(va_arg(args, char *));
       break;
     case SRUNOPT_USERNAME:
-      src_str = va_arg(args, char *);
       free(handle->username);
-      handle->username = strdup(src_str);
+      handle->username = strdup(va_arg(args, char *));
       break;
     case SRUNOPT_PASSWORD:
-      src_str = va_arg(args, char *);
       free(handle->password);
-      handle->password = strdup(src_str);
+      handle->password = strdup(va_arg(args, char *));
       break;
     case SRUNOPT_AC_ID:
       handle->ac_id = va_arg(args, int);
       break;
     case SRUNOPT_CLIENT_IP:
-      src_str = va_arg(args, char *);
       free(handle->client_ip);
-      handle->client_ip = strdup(src_str);
+      handle->client_ip = strdup(va_arg(args, char *));
       break;
     case SRUNOPT_VERBOSITY:
       handle->verbosity = va_arg(args, int);
-      if (handle->verbosity < SRUN_VERBOSITY_SILENT || handle->verbosity > SRUN_VERBOSITY_DEBUG) {
-        handle->verbosity = SRUN_VERBOSITY_SILENT; // default to silent
+      if (handle->verbosity < SRUN_VERBOSITY_SILENT) {
+        handle->verbosity = SRUN_VERBOSITY_SILENT;
+      } else if (handle->verbosity > SRUN_VERBOSITY_DEBUG) {
+        handle->verbosity = SRUN_VERBOSITY_DEBUG;
       }
       break;
   }
@@ -292,7 +294,6 @@ int srun_login(srun_handle handle) {
   if (!(handle->auth_server && handle->username && handle->password)) {
     return SRUNE_INVALID_CTX;
   }
-  handle->ac_id = 3; // FIXME
 
   // 1. construct challenge request URL
   // callback parameter serves no purpose
@@ -320,6 +321,14 @@ int srun_login(srun_handle handle) {
 
   const size_t token_len = strlen(chall.token);
 
+  if (handle->client_ip[0] == '\0') {
+    // if client_ip is not set, use the one from challenge response
+    srun_setopt(handle, SRUNOPT_CLIENT_IP, chall.client_ip);
+    if (!handle->client_ip) {
+      goto nomem_fail_free_chall;
+    }
+  }
+
   // 4. construct challenge response
 
   // 4.1. HMAC-MD5 of the user password
@@ -332,9 +341,6 @@ int srun_login(srun_handle handle) {
     sprintf(&hmac_md5_hex[2 * i], "%02hhx", hmac_md5_buf[i]);
   }
 
-  // FIXME
-  handle->client_ip = strdup(chall.client_ip);
-
   // 4.2. info field
   char *const info_str = create_info_field(handle);
   const size_t info_str_len = strlen(info_str);
@@ -344,7 +350,7 @@ int srun_login(srun_handle handle) {
   uint8_t *xenc_info = malloc(xenc_info_len);
   if (!xenc_info) {
     free(info_str);
-b64enc_alloc_fail:
+nomem_fail_free_chall:
     free_chall_response(&chall);
 nomem_fail:
     errno = ENOMEM;
@@ -354,12 +360,11 @@ nomem_fail:
   free(info_str);
 
   // 4.4. Base64 encode the x_encoded_info for updated info field
-  // char b64enc_info[256] = "{SRBX1}";
   const size_t b64enc_info_len = ((xenc_info_len + 2) / 3) * 4;
   char *const b64enc_info = malloc(8 + b64enc_info_len); // "{SRBX1}" + '\0'
   if (!b64enc_info) {
     free(xenc_info);
-    goto b64enc_alloc_fail;
+    goto nomem_fail_free_chall;
   }
   strcpy(b64enc_info, "{SRBX1}");
   b64_encode("LVoJPiCN2R8G90yg+hmFHuacZ1OWMnrsSTXkYpUq/3dlbfKwv6xztjI7DeBE45QA", '=', xenc_info, xenc_info_len,
@@ -376,7 +381,7 @@ nomem_fail:
                chall.token, b64enc_info)
       == -1) {
     free(b64enc_info);
-    goto b64enc_alloc_fail;
+    goto nomem_fail_free_chall;
   }
   free_chall_response(&chall);
 
