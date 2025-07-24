@@ -241,27 +241,29 @@ void srun_setopt(srun_handle handle, srun_option option, ...) {
 
   const char *src_str;
 
-  // TODO: more robust realloc handling
   switch (option) {
     case SRUNOPT_AUTH_SERVER:
       src_str = va_arg(args, char *);
-      handle->auth_server = realloc(handle->auth_server, strlen(src_str) + 1);
-      strcpy(handle->auth_server, src_str);
+      free(handle->auth_server);
+      handle->auth_server = strdup(src_str);
       break;
     case SRUNOPT_USERNAME:
       src_str = va_arg(args, char *);
-      handle->username = realloc(handle->username, strlen(src_str) + 1);
-      strcpy(handle->username, src_str);
+      free(handle->username);
+      handle->username = strdup(src_str);
       break;
     case SRUNOPT_PASSWORD:
       src_str = va_arg(args, char *);
-      handle->password = realloc(handle->password, strlen(src_str) + 1);
-      strcpy(handle->password, src_str);
+      free(handle->password);
+      handle->password = strdup(src_str);
+      break;
+    case SRUNOPT_AC_ID:
+      handle->ac_id = va_arg(args, int);
       break;
     case SRUNOPT_CLIENT_IP:
       src_str = va_arg(args, char *);
-      handle->client_ip = realloc(handle->client_ip, strlen(src_str) + 1);
-      strcpy(handle->client_ip, src_str);
+      free(handle->client_ip);
+      handle->client_ip = strdup(src_str);
       break;
     case SRUNOPT_VERBOSITY:
       handle->verbosity = va_arg(args, int);

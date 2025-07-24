@@ -20,11 +20,17 @@ int parse_chall_response(struct chall_response *response, const char *json) {
     return -1;
   }
 
-  // TODO handle memory allocation errors
   response->token = strdup(challenge->valuestring);
   response->client_ip = strdup(client_ip->valuestring);
 
   cJSON_Delete(root);
+
+  if (!response->token || !response->client_ip) {
+    free_chall_response(response);
+    errno = ENOMEM;
+    return -1;
+  }
+
   return 0;
 }
 
@@ -54,6 +60,13 @@ int parse_portal_response(struct portal_response *response, const char *json) {
   }
 
   cJSON_Delete(root);
+
+  if (!response->error || !response->error_msg || !response->ecode) {
+    free_portal_response(response);
+    errno = ENOMEM;
+    return -1;
+  }
+
   return 0;
 }
 
