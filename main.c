@@ -236,17 +236,20 @@ static void parse_opt(int argc, char *const *argv) {
 }
 
 static int perform_login(srun_handle handle) {
-  if (cli_args.username[0] == '\0') {
+  if (!cli_args.username || cli_args.username[0] == '\0') {
     // can't set password without username
-    cli_args.password[0] = '\0';
-    // FIXME: dynamic buffer
-    readpassphrase("Username: ", cli_args.username, sizeof cli_args.username, RPP_ECHO_ON);
-    srun_setopt(handle, SRUNOPT_USERNAME, cli_args.username);
+    free(cli_args.password);
+    cli_args.password = NULL;
+
+    char rpp_buffer[512];
+    readpassphrase("Username: ", rpp_buffer, sizeof rpp_buffer, RPP_ECHO_ON);
+    srun_setopt(handle, SRUNOPT_USERNAME, rpp_buffer);
   }
 
-  if (cli_args.password[0] == '\0') {
-    readpassphrase("Password: ", cli_args.password, sizeof cli_args.password, RPP_ECHO_OFF);
-    srun_setopt(handle, SRUNOPT_PASSWORD, cli_args.password);
+  if (!cli_args.password || cli_args.password[0] == '\0') {
+    char rpp_buffer[512];
+    readpassphrase("Password: ", rpp_buffer, sizeof rpp_buffer, RPP_ECHO_OFF);
+    srun_setopt(handle, SRUNOPT_PASSWORD, rpp_buffer);
   }
 
   int result = srun_login(handle);
@@ -262,9 +265,10 @@ static int perform_login(srun_handle handle) {
 }
 
 static int perform_logout(srun_handle handle) {
-  if (cli_args.username[0] == '\0') {
-    readpassphrase("Username: ", cli_args.username, sizeof cli_args.username, RPP_ECHO_ON);
-    srun_setopt(handle, SRUNOPT_USERNAME, cli_args.username);
+  if (!cli_args.username || cli_args.username[0] == '\0') {
+    char rpp_buffer[512];
+    readpassphrase("Username: ", rpp_buffer, sizeof rpp_buffer, RPP_ECHO_ON);
+    srun_setopt(handle, SRUNOPT_USERNAME, rpp_buffer);
   }
 
   int result = srun_logout(handle);
