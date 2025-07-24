@@ -20,8 +20,10 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest, macos-latest ]
+        crypto: [ self, openssl, mbedtls ]
+        libbsd: [ on, off ]
 
-    name: ${{ matrix.os }}
+    name: ${{ matrix.os }}-${{ matrix.crypto }}-${{ matrix.libbsd }}
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -29,24 +31,25 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 'macOS: Install dependencies'
-        if: ${{ runner.os == 'macOS' }}
+        if: runner.os == 'macOS'
         run: |
           brew update
-          brew install cmake cjson
+          brew install cmake cjson mbedtls
 
       - name: 'Linux: Install dependencies'
-        if: ${{ runner.os == 'Linux' }}
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake libbsd-dev libssl-dev libcurl4-openssl-dev libcjson-dev
+          sudo apt-get install -y cmake libbsd-dev libssl-dev libcurl4-openssl-dev libcjson-dev libmbedtls-dev
 
       - name: Configure
-        run: cmake -B ${{ github.workspace }}/cmake-build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DSRUN_CRYPTO=self
+        run: cmake -B ${{ github.workspace }}/cmake-build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DSRUN_CRYPTO=${{ matrix.crypto }} -DSRUN_LIBBSD=${{ matrix.libbsd }}
 
       - name: Build
         run: cmake --build ${{ github.workspace }}/cmake-build --config ${{ env.BUILD_TYPE }}
 
       - name: Upload artifacts
+        if: matrix.crypto == 'self' && matrix.libbsd == 'on'
         uses: actions/upload-artifact@v4
         with:
           name: srun-c-${{ runner.os }}-${{ github.run_number }}
