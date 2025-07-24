@@ -86,6 +86,10 @@ char *create_info_field(srun_handle handle) {
 
   if (!info_str) {
     errno = ENOMEM;
+    return NULL;
   }
-  return info_str;
+
+  char *ret = strdup(info_str);
+  cJSON_free(info_str);
+  return ret;
 }
