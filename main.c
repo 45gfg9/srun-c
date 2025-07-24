@@ -19,9 +19,20 @@
 
 #if defined __APPLE__
 #include <readpassphrase.h>
-#else
+#elif !defined(SRUN_NO_LIBBSD)
 #include <bsd/readpassphrase.h>
 #include <bsd/string.h>
+#else
+#warning "libbsd is disabled, readpassphrase will not work"
+#define RPP_ECHO_ON 1
+#define RPP_ECHO_OFF 0
+static inline char *readpassphrase(const char *prompt, char *buf, size_t bufsiz, int flags) {
+  (void)flags;
+  fputs(prompt, stderr);
+  fgets(buf, bufsiz, stdin);
+  buf[strcspn(buf, "\n")] = '\0';
+  return buf;
+}
 #endif
 
 #ifdef SRUN_GIT_HASH

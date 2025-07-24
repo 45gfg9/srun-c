@@ -7,9 +7,10 @@ cmake_minimum_required(VERSION 3.20)
 project(srun C)
 project(srun VERSION 0.13)
 
+option(SRUN_MBEDTLS "Use MbedTLS instead of OpenSSL" OFF)
+
 # uncomment these lines to provide default values
 # WARNING: password is stored in plain-text and can be dumped easily using `strings`
-#
 #set(SRUN_CONF_AUTH_URL "https://example.com")
 #set(SRUN_CONF_DEFAULT_USERNAME "TanikazeAmane")
 #set(SRUN_CONF_DEFAULT_PASSWORD "p4ssw@rd")
@@ -18,7 +19,7 @@ project(srun VERSION 0.13)
 #set(SRUN_CONF_DEFAULT_CLIENT_IP "0.0.0.0")
 
 set(CMAKE_C_STANDARD 11)
-add_executable(${PROJECT_NAME} platform/libcurl.c platform/openssl.c platform/cjson.c srun.c main.c)
+add_executable(${PROJECT_NAME} srun.c main.c)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
@@ -39,26 +40,6 @@ if (GIT_FOUND)
     )
 endif ()
 
-if (APPLE)
-    # have to handle OpenSSL on macOS to use Homebrew version
-    find_package(OpenSSL QUIET)
-    if (NOT OPENSSL_FOUND)
-        execute_process(
-                COMMAND brew --prefix
-                OUTPUT_VARIABLE OPENSSL_ROOT_DIR
-                OUTPUT_STRIP_TRAILING_WHITESPACE
-                ERROR_QUIET
-                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        )
-        string(APPEND OPENSSL_ROOT_DIR "/opt/openssl")
-    endif ()
-else ()
-    # have to configure libbsd on other platforms
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(LibBSD REQUIRED IMPORTED_TARGET libbsd)
-    target_link_libraries(${PROJECT_NAME} PUBLIC PkgConfig::LibBSD)
-endif ()
-
 string(TIMESTAMP SRUN_BUILD_TIME "%Y-%m-%d %H:%M:%S")
 set(SRUN_VERSION "${CMAKE_PROJECT_VERSION}")
 
@@ -74,9 +55,44 @@ endif ()
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/srun_config.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/srun_config.h")
 
-find_package(CURL REQUIRED)
-find_package(cJSON REQUIRED)
-find_package(OpenSSL REQUIRED)
+# libbsd
+if (NOT (APPLE OR BSD))
+    if (SRUN_NO_LIBBSD OR (DEFINED ENV{SRUN_NO_LIBBSD} AND ENV{SRUN_NO_LIBBSD}))
+        message(WARNING "libbsd is disabled, readpassphrase will not work")
+        target_compile_definitions(${PROJECT_NAME} PRIVATE SRUN_NO_LIBBSD)
+    else ()
+        find_library(LIBBSD_LIB NAMES bsd libbsd REQUIRED)
+        find_path(LIBBSD_INCLUDE_DIRS bsd/readpassphrase.h REQUIRED)
+        message(STATUS "Found libbsd: ${LIBBSD_LIB}")
+        target_include_directories(${PROJECT_NAME} PRIVATE ${LIBBSD_INCLUDE_DIRS})
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBBSD_LIB})
+    endif ()
+endif ()
 
-include_directories(${OPENSSL_INCLUDE_DIR} ${CJSON_INCLUDE_DIR} ${CURL_INCLUDE_DIR})
-target_link_libraries(${PROJECT_NAME} PUBLIC ${OPENSSL_LIBRARIES} ${CJSON_LIBRARIES} ${CURL_LIBRARIES})
+find_package(CURL REQUIRED)
+target_link_libraries(${PROJECT_NAME} PRIVATE CURL::libcurl)
+target_sources(${PROJECT_NAME} PRIVATE platform/libcurl.c)
+
+find_package(cJSON REQUIRED)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CJSON_INCLUDE_DIR})
+target_link_libraries(${PROJECT_NAME} PRIVATE ${CJSON_LIBRARIES})
+target_sources(${PROJECT_NAME} PRIVATE platform/cjson.c)
+
+find_library(MbedCrypto_LIB NAMES mbedcrypto)
+find_path(MbedCrypto_INCLUDE_DIR mbedtls/md.h)
+find_package(OpenSSL COMPONENTS Crypto)
+if (SRUN_MBEDTLS AND MbedCrypto_LIB AND MbedCrypto_INCLUDE_DIR)
+    message(STATUS "Found MbedTLS: ${MbedCrypto_LIB}")
+    target_include_directories(${PROJECT_NAME} PRIVATE ${MbedCrypto_INCLUDE_DIR})
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${MbedCrypto_LIB})
+    target_sources(${PROJECT_NAME} PRIVATE platform/mbedtls.c)
+else ()
+    if (NOT OpenSSL_FOUND)
+        message(FATAL_ERROR "OpenSSL or MbedTLS is required")
+    elseif (SRUN_MBEDTLS)
+        message(WARNING "MbedTLS is requested but not found, using OpenSSL instead")
+    endif ()
+    message(STATUS "Found OpenSSL: ${OPENSSL_INCLUDE_DIR}")
+    target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::Crypto)
+    target_sources(${PROJECT_NAME} PRIVATE platform/openssl.c)
+endif ()
