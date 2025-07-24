@@ -314,8 +314,31 @@ static int get_challenge(struct chall_response *chall, srun_handle handle, unsig
 }
 
 static int get_ac_id(srun_handle handle) {
-  // TODO
-  return -1;
+  char *url = strdup(handle->auth_server);
+  while (1) {
+    char *location = request_get_location(url);
+    free(url);
+
+    if (!location) {
+      fprintf(stderr, "Failed to guess ac_id. Login is very likely to fail.\n");
+      return SRUNE_OK; // continue with unknown ac_id
+    }
+
+    char *query = strchr(location, '?');
+    if (query) {
+      *query = '&'; // for easier parsing if ?ac_id=
+      char *ac_id_str = strstr(query, "&ac_id=");
+      if (ac_id_str) {
+        handle->ac_id = (int)strtol(ac_id_str + 7, NULL, 10);
+        free(location);
+        srun_log_verbose(handle->verbosity, "Guessed ac_id: %d\n", handle->ac_id);
+        return SRUNE_OK;
+      }
+    }
+
+    url = location;
+    srun_log_debug(handle->verbosity, "Next URL to try: %s\n", url);
+  }
 }
 
 static int get_portal(struct portal_response *chall, srun_handle handle, const char *url) {

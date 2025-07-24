@@ -310,6 +310,8 @@ int main(int argc, char **argv) {
   }
 
   // provide default values
+  cli_args.verbosity = SRUN_VERBOSITY_NORMAL;
+  cli_args.ac_id = SRUN_AC_ID_UNKNOWN;
 #ifdef SRUN_CONF_AUTH_URL
   cli_args.auth_server = strdup(SRUN_CONF_AUTH_URL);
 #endif
@@ -328,7 +330,6 @@ int main(int argc, char **argv) {
 #ifdef SRUN_CONF_DEFAULT_CLIENT_IP
   cli_args.client_ip = strdup(SRUN_CONF_DEFAULT_CLIENT_IP);
 #endif
-  cli_args.verbosity = SRUN_VERBOSITY_NORMAL;
 
   const char *action_str = argv[1];
 

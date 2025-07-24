@@ -92,6 +92,15 @@ static inline void free_portal_response(struct portal_response *resp) {
 char *request_get_body(const char *url);
 
 /**
+ * Sends a GET request to the specified URL and retrieves the Location header.
+ *
+ * @param url The URL to send the request to.
+ * @returns The value of the Location header, or NULL if the header is not
+ * present or an error occurs. The returned string must be freed by the caller.
+ */
+char *request_get_location(const char *url);
+
+/**
  * Parses the JSON response from the challenge request.
  *
  * @param json The JSON response to parse. It can be freed after use.
