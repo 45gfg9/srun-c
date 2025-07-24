@@ -32,7 +32,8 @@ static void init_string(struct curl_string *s) {
   s->ptr = calloc(1, 1); // initial null-terminated string
 }
 
-static size_t curl_ptr_writefunc(char *ptr, size_t size, size_t nmemb, struct curl_string *s) {
+static size_t curl_ptr_writefunc(char *ptr, size_t size, size_t nmemb, void *userdata) {
+  struct curl_string *s = userdata;
   size_t new_len = s->len + size * nmemb;
   char *new_ptr = realloc(s->ptr, new_len + 1);
   if (new_ptr == NULL) {
