@@ -66,7 +66,10 @@ int parse_portal_response(struct portal_response *response, const char *json) {
   if (cJSON_IsString(ecode)) {
     response->ecode = strdup(ecode->valuestring);
   } else {
-    asprintf(&response->ecode, "%d", ecode->valueint);
+    if (asprintf(&response->ecode, "%d", ecode->valueint) == -1) {
+      // some error occurred
+      response->ecode = NULL;
+    }
   }
 
   cJSON_Delete(root);

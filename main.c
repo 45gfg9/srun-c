@@ -25,8 +25,13 @@
 #define RPP_ECHO_OFF 0
 static inline char *readpassphrase(const char *prompt, char *buf, size_t bufsiz, int flags) {
   (void)flags;
+  if (!bufsiz) {
+    errno = EINVAL;
+    return NULL;
+  }
+
   fputs(prompt, stderr);
-  fgets(buf, bufsiz, stdin);
+  (void)fgets(buf, bufsiz, stdin);
   buf[strcspn(buf, "\n")] = '\0';
   return buf;
 }
@@ -152,7 +157,7 @@ static char *read_cert_file(const char *path) {
     fclose(f);
     return NULL;
   }
-  fread(cli_args.cert_pem, 1, file_size, f);
+  (void)fread(cli_args.cert_pem, 1, file_size, f);
   fclose(f);
 
   char *cert_begin = strstr(cli_args.cert_pem, "-----BEGIN CERTIFICATE-----");
@@ -285,11 +290,11 @@ static int perform_logout(srun_handle handle) {
 
 static void sigsegv_handler(int signum) {
   if (errno) {
-    write(STDERR_FILENO, prog_name, strlen(prog_name));
-    write(STDERR_FILENO, ": ", 2);
+    (void)write(STDERR_FILENO, prog_name, strlen(prog_name));
+    (void)write(STDERR_FILENO, ": ", 2);
     const char *errstr = strerror(errno);
-    write(STDERR_FILENO, errstr, strlen(errstr));
-    write(STDERR_FILENO, "\n", 1);
+    (void)write(STDERR_FILENO, errstr, strlen(errstr));
+    (void)write(STDERR_FILENO, "\n", 1);
   }
 
   signal(signum, SIG_DFL); // reset the signal handler to default
@@ -330,8 +335,9 @@ int main(int argc, char **argv) {
 
   parse_opt(argc, argv);
 
-  if (cli_args.verbosity == SRUN_VERBOSITY_SILENT) {
-    freopen("/dev/null", "w", stdout);
+  if (cli_args.verbosity == SRUN_VERBOSITY_SILENT && freopen("/dev/null", "w", stdout) == NULL) {
+    fprintf(stderr, "Failed to redirect stdout to /dev/null: %s\n", strerror(errno));
+    goto exit_cleanup;
   }
 
   int action;
