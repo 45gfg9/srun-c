@@ -6,12 +6,26 @@
 
 #include "compat.h"
 
+// Currently we just reuse ESP32 and ESP8266 code for as much as possible.
+// If two APIs ever deviate too much, we do separate handling then.
+
+#if ESP8266
+#include <ESP8266HTTPClient.h>
+#else
 #include <HTTPClient.h>
+#endif
 
 char *request_get(const char *url) {
   char *response = nullptr;
   HTTPClient http;
+
+#if ESP8266
+  WiFiClient client;
+  http.begin(client, url);
+#else
   http.begin(url);
+#endif
+
   int httpCode = http.GET();
   if (httpCode > 0) {
     String payload = http.getString();
