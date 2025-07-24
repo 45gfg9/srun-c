@@ -12,8 +12,9 @@
 #include <string.h>
 #include <getopt.h>
 #include <unistd.h>
+#include <libgen.h>
+#include <errno.h>
 #include <sys/wait.h>
-#include <curl/curl.h>
 #include <cjson/cJSON.h>
 
 #if defined __APPLE__
@@ -47,19 +48,8 @@ static struct {
 
   char *cert_pem;
 
-  // verbosity:
-  // -2: completely silent, no error message
-  // -1: silent, only print error message
-  // 0: normal, print only status message
-  // 1: verbose, print debug message
-  // 2: very verbose, enable libcurl verbose output
-  int verbosity;
+  enum srun_verbosity verbosity;
 } cli_args;
-
-static const char *pathToFilename(const char *path) {
-  const char *p = strrchr(path, '/');
-  return p ? p + 1 : path;
-}
 
 static void print_version(void) {
   printf("Version: %s " SRUN_VERSION GIT_HASH_STR ", Built on " SRUN_BUILD_TIME ".\n", prog_name);
@@ -158,6 +148,7 @@ static void parse_config(const char *path) {
   }
   fclose(f);
 
+  // TODO
   cJSON *root = cJSON_Parse(buf);
   free(buf);
   if (!root) {
@@ -212,7 +203,7 @@ static void parse_opt(int argc, char *const *argv) {
       {"client-ip", required_argument, NULL, 'i'},
       {"cert-file", required_argument, NULL, 'c'},
       {"quiet", no_argument, NULL, 'q'},
-      {"verbose", optional_argument, NULL, 'v'},
+      {"verbose", no_argument, NULL, 'v'},
       {"version", no_argument, NULL, 'V'},
       {},
   };
@@ -243,13 +234,13 @@ static void parse_opt(int argc, char *const *argv) {
         read_cert_file(optarg);
         break;
       case 'q':
-        --cli_args.verbosity;
+        cli_args.verbosity = SRUN_VERBOSITY_SILENT;
         break;
       case 'v':
-        if (optarg) {
-          cli_args.verbosity = (int)strtol(optarg, NULL, 10);
+        if (cli_args.verbosity < SRUN_VERBOSITY_VERBOSE) {
+          cli_args.verbosity = SRUN_VERBOSITY_VERBOSE;
         } else {
-          ++cli_args.verbosity;
+          cli_args.verbosity = SRUN_VERBOSITY_DEBUG;
         }
         break;
       case 'V':
@@ -277,10 +268,13 @@ static int perform_login(srun_handle handle) {
   }
 
   int result = srun_login(handle);
-  if (result == SRUNE_OK && cli_args.verbosity >= 0) {
-    fprintf(stderr, "Successfully logged in.\n");
-  } else if (result != SRUNE_OK && cli_args.verbosity >= -1) {
-    fprintf(stderr, "Login failed: error %d\n", result);
+  if (result == SRUNE_OK) {
+    printf("Successfully logged in.\n");
+  } else {
+    printf("Login failed: error %d\n", result);
+    if (result == SRUNE_SYSTEM && errno) {
+      perror(prog_name);
+    }
   }
   return result;
 }
@@ -297,12 +291,9 @@ static int perform_logout(srun_handle handle) {
 }
 
 int main(int argc, char **argv) {
-  // we only use random number for the jQuery callback id,
-  // so srand(time(NULL)) is enough
-  srand(time(NULL));
-
   int retval = -1;
-  prog_name = pathToFilename(argv[0]);
+  prog_name = basename(argv[0]);
+  cli_args.verbosity = SRUN_VERBOSITY_NORMAL;
 
   if (argc == 1) {
     goto no_action;
@@ -330,6 +321,10 @@ int main(int argc, char **argv) {
 
   parse_opt(argc, argv);
 
+  if (cli_args.verbosity == SRUN_VERBOSITY_SILENT) {
+    freopen("/dev/null", "w", stdout);
+  }
+
   int action;
   if (strcmp(action_str, "login") == 0) {
     action = ACTION_LOGIN;
@@ -349,7 +344,6 @@ help_guide:
     goto help_guide;
   }
 
-  curl_global_init(CURL_GLOBAL_ALL);
   srun_handle handle = srun_create();
 
   srun_setopt(handle, SRUNOPT_AUTH_SERVER, cli_args.auth_server);
@@ -357,7 +351,7 @@ help_guide:
   srun_setopt(handle, SRUNOPT_PASSWORD, cli_args.password);
   srun_setopt(handle, SRUNOPT_CLIENT_IP, cli_args.client_ip);
   // srun_setopt(handle, SRUNOPT_SERVER_CERT, cli_args.cert_pem);
-  // srun_setopt(handle, SRUNOPT_VERBOSITY, cli_args.verbosity);
+  srun_setopt(handle, SRUNOPT_VERBOSITY, cli_args.verbosity);
 
   if (action == ACTION_LOGIN) {
     retval = perform_login(handle) != SRUNE_OK;
@@ -368,10 +362,6 @@ help_guide:
   srun_cleanup(handle);
   handle = NULL;
 
-  curl_global_cleanup();
-
-  // yes, goto is bad, but there's really no elegant solution in C
-  // I know what I'm doing
 exit_cleanup:
   free(cli_args.cert_pem);
   memset(&cli_args, 0, sizeof cli_args);

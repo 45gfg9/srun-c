@@ -11,6 +11,28 @@
 extern "C" {
 #endif
 
+enum srun_verbosity {
+  /**
+   * @brief Suppress all output. Print only critical errors.
+   */
+  SRUN_VERBOSITY_SILENT,
+
+  /**
+   * @brief Default verbosity level. Print connection status.
+   */
+  SRUN_VERBOSITY_NORMAL,
+
+  /**
+   * @brief Increased verbosity level. Print detailed connection status.
+   */
+  SRUN_VERBOSITY_VERBOSE,
+
+  /**
+   * @brief Maximum verbosity level. Print all messages and library debug information.
+   */
+  SRUN_VERBOSITY_DEBUG,
+};
+
 typedef struct srun_context *srun_handle;
 
 typedef enum srun_option {
@@ -56,10 +78,11 @@ typedef enum srun_option {
   SRUNOPT_CLIENT_IP,
 
   /**
-   * Quiet mode. Suppresses all logs.
+   * Verbosity level. See enum srun_verbosity.
+   * Default is SRUN_VERBOSITY_SILENT.
    * Type: int
    */
-  SRUNOPT_QUIET,
+  SRUNOPT_VERBOSITY,
 } srun_option;
 
 /**

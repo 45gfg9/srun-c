@@ -263,8 +263,11 @@ void srun_setopt(srun_handle handle, srun_option option, ...) {
       handle->client_ip = realloc(handle->client_ip, strlen(src_str) + 1);
       strcpy(handle->client_ip, src_str);
       break;
-    case SRUNOPT_QUIET:
-      handle->quiet = va_arg(args, int);
+    case SRUNOPT_VERBOSITY:
+      handle->verbosity = va_arg(args, int);
+      if (handle->verbosity < SRUN_VERBOSITY_SILENT || handle->verbosity > SRUN_VERBOSITY_DEBUG) {
+        handle->verbosity = SRUN_VERBOSITY_SILENT; // default to silent
+      }
       break;
   }
 
@@ -405,8 +408,6 @@ nomem_fail:
   // 6. perform portal request
   resp_buf = request_get(portal_url);
   free(portal_url);
-
-  fprintf(stderr, "Portal response: %s\n", resp_buf);
 
   // 7. parse portal response
   struct portal_response resp;
