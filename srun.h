@@ -112,6 +112,12 @@ typedef enum srun_option {
 #define SRUNE_SYSTEM (-3)
 
 /**
+ * Special value indicating that the ac_id is unknown.
+ * The library will try to find it automatically.
+ */
+#define SRUN_AC_ID_UNKNOWN (-1)
+
+/**
  * Create a new srun handle. This handle must be freed by `srun_cleanup`.
  *
  * @return A new srun handle

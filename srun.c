@@ -214,7 +214,9 @@ srun_handle srun_create(void) {
   if (!handle) {
     return NULL;
   }
-  srun_setopt(handle, SRUNOPT_CLIENT_IP, "");
+  handle->ac_id = SRUN_AC_ID_UNKNOWN;
+  handle->client_ip = strdup("");
+  handle->verbosity = SRUN_VERBOSITY_SILENT;
   return handle;
 }
 
@@ -311,6 +313,11 @@ static int get_challenge(struct chall_response *chall, srun_handle handle, unsig
   return SRUNE_OK;
 }
 
+static int get_ac_id(srun_handle handle) {
+  // TODO
+  return -1;
+}
+
 static int get_portal(struct portal_response *chall, srun_handle handle, const char *url) {
   srun_log_debug(handle->verbosity, "Portal URL: %s\n", url);
   char *resp_buf = request_get(url);
@@ -334,6 +341,14 @@ int srun_login(srun_handle handle) {
   if (!handle->auth_server || !handle->username || !handle->password || handle->auth_server[0] == '\0'
       || handle->username[0] == '\0' || handle->password[0] == '\0') {
     return SRUNE_INVALID_CTX;
+  }
+
+  if (handle->ac_id == SRUN_AC_ID_UNKNOWN) {
+    // if ac_id is not set, try to get it from the server
+    int retval = get_ac_id(handle);
+    if (retval != SRUNE_OK) {
+      return retval;
+    }
   }
 
   // 1. construct challenge request URL

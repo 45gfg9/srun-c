@@ -37,7 +37,6 @@ static inline char *readpassphrase(const char *prompt, char *buf, size_t bufsiz,
 }
 #else
 #include <bsd/readpassphrase.h>
-#include <bsd/string.h>
 #endif
 
 #ifdef SRUN_GIT_HASH
