@@ -21,9 +21,8 @@ jobs:
       matrix:
         os: [ ubuntu-latest, macos-latest ]
         crypto: [ self, openssl, mbedtls ]
-        libbsd: [ on, off ]
 
-    name: ${{ matrix.os }}-${{ matrix.crypto }}-${{ matrix.libbsd }}
+    name: ${{ matrix.os }}-${{ matrix.crypto }}
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -43,13 +42,13 @@ jobs:
           sudo apt-get install -y cmake libbsd-dev libssl-dev libcurl4-openssl-dev libcjson-dev libmbedtls-dev
 
       - name: Configure
-        run: cmake -B ${{ github.workspace }}/cmake-build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DSRUN_CRYPTO=${{ matrix.crypto }} -DSRUN_LIBBSD=${{ matrix.libbsd }}
+        run: cmake -B ${{ github.workspace }}/cmake-build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DSRUN_CRYPTO=${{ matrix.crypto }}
 
       - name: Build
         run: cmake --build ${{ github.workspace }}/cmake-build --config ${{ env.BUILD_TYPE }}
 
       - name: Upload artifacts
-        if: matrix.crypto == 'self' && matrix.libbsd == 'on'
+        if: matrix.crypto == 'self'
         uses: actions/upload-artifact@v4
         with:
           name: srun-c-${{ runner.os }}-${{ github.run_number }}
