@@ -286,34 +286,7 @@ static int json_strip_callback(char *buf) {
   }
 }
 
-static int get_challenge(struct chall_response *chall, srun_handle handle, unsigned long long req_time) {
-  // callback parameter serves no purpose
-  const char *const chall_fmtstr = "%s" PATH_GET_CHAL "?callback=jQuery98"
-                                   "&username=%s&ip=%s&_=%llu000";
-  char *chall_url;
-  if (asprintf(&chall_url, chall_fmtstr, handle->auth_server, handle->username, handle->client_ip, req_time) == -1) {
-    return SRUNE_SYSTEM;
-  }
-  srun_log_debug(handle->verbosity, "Challenge URL: %s\n", chall_url);
-  char *resp_buf = request_get_body(chall_url);
-  free(chall_url);
-
-  if (!resp_buf) {
-    fprintf(stderr, "Failed to get challenge response\n");
-    return SRUNE_NETWORK;
-  }
-  srun_log_verbose(handle->verbosity, "Challenge response: %s\n", resp_buf);
-
-  if (json_strip_callback(resp_buf) != 0 || parse_chall_response(chall, resp_buf) != 0) {
-    fprintf(stderr, "Invalid challenge response: %s\n", resp_buf);
-    free(resp_buf);
-    return SRUNE_NETWORK;
-  }
-  free(resp_buf);
-  return SRUNE_OK;
-}
-
-static int get_ac_id(srun_handle handle) {
+static int get_ac_id(const srun_handle handle) {
   char *url = strdup(handle->auth_server);
   while (1) {
     char *location = request_get_location(url);
@@ -341,7 +314,34 @@ static int get_ac_id(srun_handle handle) {
   }
 }
 
-static int get_portal(struct portal_response *chall, srun_handle handle, const char *url) {
+static int get_challenge(struct chall_response *chall, const srun_handle handle, unsigned long long req_time) {
+  // callback parameter serves no purpose
+  const char *const chall_fmtstr = "%s" PATH_GET_CHAL "?callback=jQuery98"
+                                   "&username=%s&ip=%s&_=%llu000";
+  char *chall_url;
+  if (asprintf(&chall_url, chall_fmtstr, handle->auth_server, handle->username, handle->client_ip, req_time) == -1) {
+    return SRUNE_SYSTEM;
+  }
+  srun_log_debug(handle->verbosity, "Challenge URL: %s\n", chall_url);
+  char *resp_buf = request_get_body(chall_url);
+  free(chall_url);
+
+  if (!resp_buf) {
+    fprintf(stderr, "Failed to get challenge response\n");
+    return SRUNE_NETWORK;
+  }
+  srun_log_verbose(handle->verbosity, "Challenge response: %s\n", resp_buf);
+
+  if (json_strip_callback(resp_buf) != 0 || parse_chall_response(chall, resp_buf) != 0) {
+    fprintf(stderr, "Invalid challenge response: %s\n", resp_buf);
+    free(resp_buf);
+    return SRUNE_NETWORK;
+  }
+  free(resp_buf);
+  return SRUNE_OK;
+}
+
+static int get_portal(struct portal_response *chall, const srun_handle handle, const char *url) {
   srun_log_debug(handle->verbosity, "Portal URL: %s\n", url);
   char *resp_buf = request_get_body(url);
 
@@ -366,15 +366,14 @@ int srun_login(srun_handle handle) {
     return SRUNE_INVALID_CTX;
   }
 
+  // 1. if ac_id is not set, try to get it from the server
   if (handle->ac_id == SRUN_AC_ID_UNKNOWN) {
-    // if ac_id is not set, try to get it from the server
     handle->ac_id = get_ac_id(handle);
   }
 
-  // 1. construct challenge request URL
-  // callback parameter serves no purpose
   const unsigned long long req_time = (unsigned long long)time(NULL);
 
+  // 2. get challenge response
   struct chall_response chall;
   int retval = get_challenge(&chall, handle, req_time);
   if (retval != SRUNE_OK) {
@@ -383,11 +382,13 @@ int srun_login(srun_handle handle) {
 
   const size_t token_len = strlen(chall.token);
 
+  // 3. if client_ip is not set, use the one from challenge response
   if (handle->client_ip[0] == '\0') {
-    // if client_ip is not set, use the one from challenge response
     srun_setopt(handle, SRUNOPT_CLIENT_IP, chall.client_ip);
     if (!handle->client_ip) {
-      goto nomem_free_chall;
+nomem_free_chall:
+      free_chall_response(&chall);
+      return SRUNE_SYSTEM;
     }
   }
 
@@ -412,14 +413,12 @@ int srun_login(srun_handle handle) {
   uint8_t *xenc_info = malloc(xenc_info_len);
   if (!xenc_info) {
     free(info_str);
-nomem_free_chall:
-    free_chall_response(&chall);
-    return SRUNE_SYSTEM;
+    goto nomem_free_chall;
   }
   x_encode((const uint8_t *)info_str, info_str_len, (const uint8_t *)chall.token, token_len, xenc_info, xenc_info_len);
   free(info_str);
 
-  // 4.4. Base64 encode the x_encoded_info for updated info field
+  // 4.4. Base64 encode the xenc_info
   const size_t b64enc_info_len = ((xenc_info_len + 2) / 3) * 4;
   char *const b64enc_info = malloc(8 + b64enc_info_len); // "{SRBX1}" + '\0'
   if (!b64enc_info) {
@@ -435,6 +434,7 @@ nomem_free_chall:
   char ac_id_str[12];
   snprintf(ac_id_str, sizeof ac_id_str, "%d", handle->ac_id);
 
+  // TODO: move hardcoded CHALL_N and CHALL_TYPE to CMakeLists.txt
   char *sha1_msg;
   if (asprintf(&sha1_msg, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s", chall.token, handle->username, chall.token, hmac_md5_hex,
                chall.token, ac_id_str, chall.token, handle->client_ip, chall.token, CHALL_N, chall.token, CHALL_TYPE,
@@ -501,8 +501,13 @@ nomem_free_chall:
 int srun_logout(srun_handle handle) {
   const unsigned long long req_time = (unsigned long long)time(NULL);
 
+  // 1. guess ac_id if not set
+  if (handle->ac_id == SRUN_AC_ID_UNKNOWN) {
+    handle->ac_id = get_ac_id(handle);
+  }
+
+  // 2. get client_ip from challenge response if not set, required by logout
   if (handle->client_ip[0] == '\0') {
-    // get client_ip from challenge response
     struct chall_response chall;
     int retval = get_challenge(&chall, handle, req_time);
     if (retval != SRUNE_OK) {
@@ -512,6 +517,7 @@ int srun_logout(srun_handle handle) {
     free_chall_response(&chall);
   }
 
+  // 3. construct logout request URL
   const char *const logout_fmtstr = "%s" PATH_PORTAL "?callback=jQuery98&action=logout"
                                     "&_=%llu000&username=%s&ip=%s&ac_id=%d";
   char *logout_url;
@@ -521,6 +527,7 @@ int srun_logout(srun_handle handle) {
     return SRUNE_SYSTEM; // memory allocation failed
   }
 
+  // 4. perform logout request
   struct portal_response resp;
   int retval = get_portal(&resp, handle, logout_url);
   free(logout_url);
