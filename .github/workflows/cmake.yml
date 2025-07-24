@@ -1,4 +1,4 @@
-name: Srun
+name: srun-c
 
 on:
   push:
@@ -49,7 +49,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Srun-${{ runner.os }}-${{ github.run_number }}
+          name: srun-c-${{ runner.os }}-${{ github.run_number }}
           path: |
             ${{ github.workspace }}/cmake-build/srun
           if-no-files-found: ignore
