@@ -7,6 +7,10 @@
 #ifndef __SRUN_PLATFORM_COMPAT_H__
 #define __SRUN_PLATFORM_COMPAT_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // see asprintf(3)
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -129,7 +133,7 @@ char *create_info_field(srun_handle handle);
  * @param digest A buffer to hold the resulting SHA-1 digest (20 bytes).
  * @returns The length of the digest (20), or 0 on error, in which case errno is set appropriately.
  */
-size_t sha1_digest(const uint8_t *data, size_t len, uint8_t digest[static 20]);
+size_t sha1_digest(const uint8_t *data, size_t len, uint8_t digest[20]);
 
 /**
  * Computes the HMAC-MD5 digest of the given data using the specified key.
@@ -141,7 +145,10 @@ size_t sha1_digest(const uint8_t *data, size_t len, uint8_t digest[static 20]);
  * @param digest A buffer to hold the resulting HMAC-MD5 digest (16 bytes).
  * @returns The length of the digest (16), or 0 on error, in which case errno is set appropriately.
  */
-size_t hmac_md5_digest(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len,
-                       uint8_t digest[static 16]);
+size_t hmac_md5_digest(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t digest[16]);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
