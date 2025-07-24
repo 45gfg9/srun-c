@@ -31,7 +31,7 @@ static inline char *readpassphrase(const char *prompt, char *buf, size_t bufsiz,
   }
 
   fputs(prompt, stderr);
-  (void)fgets(buf, bufsiz, stdin);
+  fgets(buf, bufsiz, stdin);
   buf[strcspn(buf, "\n")] = '\0';
   return buf;
 }
@@ -156,7 +156,7 @@ static char *read_cert_file(const char *path) {
     fclose(f);
     return NULL;
   }
-  (void)fread(cli_args.cert_pem, 1, file_size, f);
+  fread(cli_args.cert_pem, 1, file_size, f);
   fclose(f);
 
   char *cert_begin = strstr(cli_args.cert_pem, "-----BEGIN CERTIFICATE-----");
@@ -289,11 +289,11 @@ static int perform_logout(srun_handle handle) {
 
 static void sigsegv_handler(int signum) {
   if (errno) {
-    (void)write(STDERR_FILENO, prog_name, strlen(prog_name));
-    (void)write(STDERR_FILENO, ": ", 2);
+    write(STDERR_FILENO, prog_name, strlen(prog_name));
+    write(STDERR_FILENO, ": ", 2);
     const char *errstr = strerror(errno);
-    (void)write(STDERR_FILENO, errstr, strlen(errstr));
-    (void)write(STDERR_FILENO, "\n", 1);
+    write(STDERR_FILENO, errstr, strlen(errstr));
+    write(STDERR_FILENO, "\n", 1);
   }
 
   signal(signum, SIG_DFL); // reset the signal handler to default
