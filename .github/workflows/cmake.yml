@@ -41,7 +41,7 @@ jobs:
           sudo apt-get install -y cmake libbsd-dev libssl-dev libcurl4-openssl-dev libcjson-dev
 
       - name: Configure
-        run: cmake -B ${{ github.workspace }}/cmake-build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        run: cmake -B ${{ github.workspace }}/cmake-build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DSRUN_CRYPTO=self
 
       - name: Build
         run: cmake --build ${{ github.workspace }}/cmake-build --config ${{ env.BUILD_TYPE }}
