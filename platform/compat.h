@@ -37,7 +37,7 @@ struct srun_context {
 };
 
 struct chall_response {
-  char *challenge;
+  char *token;
   char *client_ip;
 };
 

@@ -19,7 +19,8 @@ int parse_chall_response(struct chall_response *response, const char *json) {
     return -1;
   }
 
-  response->challenge = strdup(challenge->valuestring);
+  // TODO handle memory allocation errors
+  response->token = strdup(challenge->valuestring);
   response->client_ip = strdup(client_ip->valuestring);
 
   cJSON_Delete(root);

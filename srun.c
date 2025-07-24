@@ -35,6 +35,10 @@ static size_t s_encode(const uint8_t *msg, size_t msg_len, uint32_t *dst, int ap
   // zero pad input
   size_t buf_len = ((msg_len + 3) / 4) * 4;
   uint8_t *buf = calloc(buf_len, 1);
+  if (!buf) {
+    errno = ENOMEM;
+    return 0;
+  }
   memcpy(buf, msg, msg_len);
 
   size_t i;
@@ -106,7 +110,7 @@ static size_t x_encode(const uint8_t *src, size_t src_len, const uint8_t *key, s
 
   if (!encoded_msg) {
     errno = ENOMEM;
-    return 0; // memory allocation failed
+    return 0;
   }
 
   s_encode(src, src_len, encoded_msg, 1);
@@ -153,7 +157,7 @@ static size_t b64_encode(const char alpha[static 64], char pad_char, const uint8
   uint8_t *buf = calloc(buf_len, 1);
   if (!buf) {
     errno = ENOMEM;
-    return 0; // memory allocation failed
+    return 0;
   }
   memcpy(buf, src, src_len);
 
@@ -191,7 +195,7 @@ static char *url_encode(const char *str) {
   char *enc = malloc(len * 3 + 1); // +1 for null terminator
   if (!enc) {
     errno = ENOMEM;
-    return NULL; // memory allocation failed
+    return NULL;
   }
 
   char *penc = enc;
@@ -212,6 +216,10 @@ static char *url_encode(const char *str) {
 srun_handle srun_create(void) {
   // allocate a new context
   srun_handle handle = calloc(1, sizeof(struct srun_context));
+  if (!handle) {
+    errno = ENOMEM;
+    return NULL;
+  }
   srun_setopt(handle, SRUNOPT_CLIENT_IP, "0.0.0.0");
   return handle;
 }
@@ -288,7 +296,6 @@ int srun_login(srun_handle handle) {
                                    "&username=%s&ip=%s&_=%llu000";
   char *chall_url;
   if (asprintf(&chall_url, chall_fmtstr, handle->auth_server, handle->username, handle->client_ip, req_time) == -1) {
-    fprintf(stderr, "Failed to construct challenge request URL\n");
     goto nomem_fail;
   }
 
@@ -306,7 +313,7 @@ int srun_login(srun_handle handle) {
   }
   free(resp_buf);
 
-  const size_t chall_len = strlen(chall.challenge);
+  const size_t token_len = strlen(chall.token);
 
   // 4. construct challenge response
 
@@ -314,10 +321,10 @@ int srun_login(srun_handle handle) {
   uint8_t hmac_md5_buf[16];
   char hmac_md5_hex[33];
 
-  hmac_md5_digest((const uint8_t *)handle->password, strlen(handle->password), (const uint8_t *)chall.challenge,
-                  chall_len, hmac_md5_buf);
+  hmac_md5_digest((const uint8_t *)handle->password, strlen(handle->password), (const uint8_t *)chall.token, token_len,
+                  hmac_md5_buf);
   for (unsigned int i = 0; i < 16; i++) {
-    snprintf(&hmac_md5_hex[2 * i], 3, "%02hhx", hmac_md5_buf[i]);
+    sprintf(&hmac_md5_hex[2 * i], "%02hhx", hmac_md5_buf[i]);
   }
 
   // FIXME
@@ -331,15 +338,14 @@ int srun_login(srun_handle handle) {
   const size_t xenc_info_len = ((info_str_len + 3) / 4 + 1) * 4;
   uint8_t *xenc_info = malloc(xenc_info_len);
   if (!xenc_info) {
-x_encode_fail:
     free(info_str);
-    free(chall.challenge);
-    free(chall.client_ip);
+b64enc_alloc_fail:
+    free_chall_response(&chall);
 nomem_fail:
     errno = ENOMEM;
     return SRUNE_SYSTEM;
   }
-  x_encode((uint8_t *)info_str, info_str_len, (const uint8_t *)chall.challenge, chall_len, xenc_info, xenc_info_len);
+  x_encode((const uint8_t *)info_str, info_str_len, (const uint8_t *)chall.token, token_len, xenc_info, xenc_info_len);
   free(info_str);
 
   // 4.4. Base64 encode the x_encoded_info for updated info field
@@ -348,7 +354,7 @@ nomem_fail:
   char *const b64enc_info = malloc(8 + b64enc_info_len); // "{SRBX1}" + '\0'
   if (!b64enc_info) {
     free(xenc_info);
-    goto x_encode_fail;
+    goto b64enc_alloc_fail;
   }
   strcpy(b64enc_info, "{SRBX1}");
   b64_encode("LVoJPiCN2R8G90yg+hmFHuacZ1OWMnrsSTXkYpUq/3dlbfKwv6xztjI7DeBE45QA", '=', xenc_info, xenc_info_len,
@@ -359,42 +365,28 @@ nomem_fail:
   char ac_id_str[12];
   snprintf(ac_id_str, sizeof ac_id_str, "%d", handle->ac_id);
 
-  size_t sha1_msglen = 32                          // hmac_md5_hex length
-                       + strlen(handle->username)  // username length
-                       + strlen(handle->client_ip) // client_ip length
-                       + strlen(ac_id_str)         // ac_id length
-                       + strlen(CHALL_N)           // n length
-                       + strlen(CHALL_TYPE)        // type length
-                       + b64enc_info_len + 7       // info length (b64enc_info + "{SRBX1}")
-                       + 7 * chall_len;            // 7 occurrences of chall.challenge
-
-  char *sha1_msgbuf = malloc(sha1_msglen + 1);
-  if (!sha1_msgbuf) {
+  char *sha1_msg;
+  if (asprintf(&sha1_msg, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s", chall.token, handle->username, chall.token, hmac_md5_hex,
+               chall.token, ac_id_str, chall.token, handle->client_ip, chall.token, CHALL_N, chall.token, CHALL_TYPE,
+               chall.token, b64enc_info)
+      == -1) {
     free(b64enc_info);
-    goto x_encode_fail;
+    goto b64enc_alloc_fail;
   }
-  snprintf(sha1_msgbuf, sha1_msglen + 1, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s", chall.challenge, handle->username,
-           chall.challenge, hmac_md5_hex, chall.challenge, ac_id_str, chall.challenge, handle->client_ip,
-           chall.challenge, CHALL_N, chall.challenge, CHALL_TYPE, chall.challenge, b64enc_info);
-
-  free(chall.challenge);
-  free(chall.client_ip);
-  chall.challenge = NULL;
-  chall.client_ip = NULL;
+  free_chall_response(&chall);
 
   uint8_t sha1_buf[20];
   char sha1_hex[41];
-  sha1_digest((const uint8_t *)sha1_msgbuf, sha1_msglen, sha1_buf);
-  free(sha1_msgbuf);
+  sha1_digest((const uint8_t *)sha1_msg, strlen(sha1_msg), sha1_buf);
+  free(sha1_msg);
   for (unsigned int i = 0; i < sizeof sha1_buf; i++) {
-    snprintf(&sha1_hex[2 * i], 3, "%02hhx", sha1_buf[i]);
+    sprintf(&sha1_hex[2 * i], "%02hhx", sha1_buf[i]);
   }
 
   // 5. construct portal request URL
   char *url_encoded_info = url_encode(b64enc_info);
   free(b64enc_info);
   if (!url_encoded_info) {
-    fprintf(stderr, "Failed to URL encode info field\n");
     goto nomem_fail;
   }
 
@@ -405,12 +397,10 @@ nomem_fail:
   if (asprintf(&portal_url, portal_fmtstr, handle->auth_server, CHALL_N, CHALL_TYPE, req_time, handle->username,
                hmac_md5_hex, handle->ac_id, handle->client_ip, sha1_hex, url_encoded_info)
       == -1) {
-    fprintf(stderr, "Failed to construct portal request URL\n");
+    free(url_encoded_info);
     goto nomem_fail;
   }
   free(url_encoded_info);
-
-  fprintf(stderr, "Portal request URL: %s\n", portal_url);
 
   // 6. perform portal request
   resp_buf = request_get(portal_url);
@@ -418,7 +408,21 @@ nomem_fail:
 
   fprintf(stderr, "Portal response: %s\n", resp_buf);
 
-  // TODO
+  // 7. parse portal response
+  struct portal_response resp;
+  if (json_strip_callback(resp_buf) != 0 || parse_portal_response(&resp, resp_buf) != 0) {
+    fprintf(stderr, "Invalid portal response: %s\n", resp_buf);
+    free(resp_buf);
+    return SRUNE_NETWORK;
+  }
   free(resp_buf);
-  return -1;
+
+  if (strcmp(resp.error, "ok") == 0) {
+    // login successful
+    free_portal_response(&resp);
+    return SRUNE_OK;
+  }
+
+  free_portal_response(&resp);
+  return SRUNE_NETWORK;
 }
