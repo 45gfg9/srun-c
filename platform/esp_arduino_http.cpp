@@ -15,7 +15,7 @@
 #include <HTTPClient.h>
 #endif
 
-char *request_get(const char *url) {
+char *request_get_body(const char *url) {
   char *response = nullptr;
   HTTPClient http;
 

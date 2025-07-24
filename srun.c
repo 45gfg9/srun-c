@@ -295,7 +295,7 @@ static int get_challenge(struct chall_response *chall, srun_handle handle, unsig
     return SRUNE_SYSTEM;
   }
   srun_log_debug(handle->verbosity, "Challenge URL: %s\n", chall_url);
-  char *resp_buf = request_get(chall_url);
+  char *resp_buf = request_get_body(chall_url);
   free(chall_url);
 
   if (!resp_buf) {
@@ -320,7 +320,7 @@ static int get_ac_id(srun_handle handle) {
 
 static int get_portal(struct portal_response *chall, srun_handle handle, const char *url) {
   srun_log_debug(handle->verbosity, "Portal URL: %s\n", url);
-  char *resp_buf = request_get(url);
+  char *resp_buf = request_get_body(url);
 
   if (!resp_buf) {
     fprintf(stderr, "Failed to get portal response\n");

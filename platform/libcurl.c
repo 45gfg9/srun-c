@@ -48,7 +48,7 @@ static size_t writefunc(char *ptr, size_t size, size_t nmemb, struct curl_string
   return size * nmemb;
 }
 
-char *request_get(const char *url) {
+char *request_get_body(const char *url) {
   CURL *curl_handle = curl_easy_init();
   if (!curl_handle) {
     // https://curl.se/libcurl/c/curl_easy_init.html

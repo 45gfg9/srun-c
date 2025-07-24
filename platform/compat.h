@@ -83,13 +83,13 @@ static inline void free_portal_response(struct portal_response *resp) {
 }
 
 /**
- * Sends a GET request to the specified URL.
+ * Sends a GET request to the specified URL and retrieves the response body.
  *
- * @param url The URL to send the request to. It can be freed after use.
- * @returns The response body, or NULL on error, in which case errno is set
- * appropriately. The returned string must be freed by the caller.
+ * @param url The URL to send the request to.
+ * @returns The response body, or NULL and errno is set.
+ * The returned string must be freed by the caller.
  */
-char *request_get(const char *url);
+char *request_get_body(const char *url);
 
 /**
  * Parses the JSON response from the challenge request.
@@ -98,7 +98,7 @@ char *request_get(const char *url);
  * @param response A struct to hold the parsed challenge information.
  * Members of the struct must be freed by the caller.
  * If an error occurs, the struct is not modified.
- * @returns 0 on success, or -1 on error, in which case errno is set appropriately.
+ * @returns 0 on success, or -1 and errno is set.
  */
 int parse_chall_response(struct chall_response *response, const char *json);
 
@@ -109,7 +109,7 @@ int parse_chall_response(struct chall_response *response, const char *json);
  * @param response A struct to hold the parsed portal information.
  * Members of the struct must be freed by the caller.
  * If an error occurs, the struct is not modified.
- * @returns 0 on success, or -1 on error, in which case errno is set appropriately.
+ * @returns 0 on success, or -1 and errno is set.
  */
 int parse_portal_response(struct portal_response *response, const char *json);
 
@@ -119,8 +119,7 @@ int parse_portal_response(struct portal_response *response, const char *json);
  * @param handle The srun handle.
  * @param challenge The challenge string.
  * @param chall_length The length of the challenge string.
- * @returns A newly allocated string containing the info field, or NULL on error,
- * in which case errno is set appropriately.
+ * @returns A newly allocated string containing the info field, or NULL and errno is set.
  * The caller is responsible for freeing the returned string.
  */
 char *create_info_field(srun_handle handle);
@@ -131,7 +130,7 @@ char *create_info_field(srun_handle handle);
  * @param data The input data to hash.
  * @param len The length of the input data.
  * @param digest A buffer to hold the resulting SHA-1 digest (20 bytes).
- * @returns The length of the digest (20), or 0 on error, in which case errno is set appropriately.
+ * @returns The length of the digest (20), or 0 and errno is set.
  */
 size_t sha1_digest(const uint8_t *data, size_t len, uint8_t digest[20]);
 
@@ -143,7 +142,7 @@ size_t sha1_digest(const uint8_t *data, size_t len, uint8_t digest[20]);
  * @param data The input data to hash.
  * @param data_len The length of the input data.
  * @param digest A buffer to hold the resulting HMAC-MD5 digest (16 bytes).
- * @returns The length of the digest (16), or 0 on error, in which case errno is set appropriately.
+ * @returns The length of the digest (16), or 0 and errno is set.
  */
 size_t hmac_md5_digest(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t digest[16]);
 
