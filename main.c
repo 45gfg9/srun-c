@@ -15,7 +15,6 @@
 #include <libgen.h>
 #include <errno.h>
 #include <sys/wait.h>
-#include <cjson/cJSON.h>
 
 #if defined __APPLE__
 #include <readpassphrase.h>
@@ -114,47 +113,12 @@ static void print_help(void) {
   puts("  -c, --cert-file=FILE");
   puts("          use FILE as the PEM certificate");
   puts("  -q, --quiet");
-  puts("          print only error message");
-  puts("          -qq to suppress all output");
-  puts("  -v, --verbose[=LEVEL]");
-  puts("          -vv is the same as --verbose=2");
-  puts("          Level 1: print debug message");
-  puts("          Level 2: also print libcurl verbose message");
+  puts("          suppress standard output");
+  puts("  -v, --verbose");
+  puts("          enable verbose output to stderr");
+  puts("          Can be specified multiple times to increase verbosity, maximum is 2");
   puts("  -V, --version");
   puts("          print version information and exit");
-}
-
-static void parse_config(const char *path) {
-  FILE *f = fopen(path, "r");
-  if (!f) {
-    perror(prog_name);
-    exit(-1);
-  }
-  // read file contents
-  fseek(f, 0, SEEK_END);
-  size_t size = ftell(f);
-  fseek(f, 0, SEEK_SET);
-  char *buf = malloc(size + 1);
-  if (!buf) {
-    perror(prog_name);
-    fclose(f);
-    exit(-1);
-  }
-  if (fread(buf, 1, size, f) != size) {
-    perror(prog_name);
-    fclose(f);
-    free(buf);
-    exit(-1);
-  }
-  fclose(f);
-
-  // TODO
-  cJSON *root = cJSON_Parse(buf);
-  free(buf);
-  if (!root) {
-    fprintf(stderr, "Invalid JSON: %s\n", path);
-    exit(-1);
-  }
 }
 
 static char *read_cert_file(const char *path) {
@@ -196,7 +160,6 @@ static char *read_cert_file(const char *path) {
 static void parse_opt(int argc, char *const *argv) {
   static const struct option LONG_OPTS[] = {
       {"help", no_argument, NULL, 'h'},
-      {"config", required_argument, NULL, 'f'},
       {"auth-server", required_argument, NULL, 's'},
       {"username", required_argument, NULL, 'u'},
       {"password", required_argument, NULL, 'p'},
@@ -215,9 +178,6 @@ static void parse_opt(int argc, char *const *argv) {
       case 'h':
         print_help();
         exit(EXIT_SUCCESS);
-      case 'f':
-        parse_config(optarg);
-        break;
       case 's':
         strlcpy(cli_args.auth_server, optarg, sizeof cli_args.auth_server);
         break;

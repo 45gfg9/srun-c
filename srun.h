@@ -13,22 +13,22 @@ extern "C" {
 
 enum srun_verbosity {
   /**
-   * @brief Suppress all output. Print only critical errors.
+   * @brief Suppress stdout. Errors will be printed to stderr.
    */
-  SRUN_VERBOSITY_SILENT,
+  SRUN_VERBOSITY_SILENT = -1,
 
   /**
-   * @brief Default verbosity level. Print connection status.
+   * @brief Print connection status to stdout.
    */
   SRUN_VERBOSITY_NORMAL,
 
   /**
-   * @brief Increased verbosity level. Print detailed connection status.
+   * @brief Print detailed connection status to stderr.
    */
   SRUN_VERBOSITY_VERBOSE,
 
   /**
-   * @brief Maximum verbosity level. Print all messages and library debug information.
+   * @brief Print all messages and library debug information to stderr.
    */
   SRUN_VERBOSITY_DEBUG,
 };
