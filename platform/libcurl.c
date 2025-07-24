@@ -32,7 +32,7 @@ static void init_string(struct curl_string *s) {
   s->ptr = calloc(1, 1); // initial null-terminated string
 }
 
-static size_t writefunc(char *ptr, size_t size, size_t nmemb, struct curl_string *s) {
+static size_t curl_ptr_writefunc(char *ptr, size_t size, size_t nmemb, struct curl_string *s) {
   size_t new_len = s->len + size * nmemb;
   char *new_ptr = realloc(s->ptr, new_len + 1);
   if (new_ptr == NULL) {
@@ -48,20 +48,26 @@ static size_t writefunc(char *ptr, size_t size, size_t nmemb, struct curl_string
   return size * nmemb;
 }
 
+static size_t curl_null_writefunc(char *ptr, size_t size, size_t nmemb, void *userdata) {
+  (void)ptr;
+  (void)userdata;
+  return size * nmemb;
+}
+
 char *request_get_body(const char *url) {
   CURL *curl_handle = curl_easy_init();
   if (!curl_handle) {
     // https://curl.se/libcurl/c/curl_easy_init.html
     // curl_easy_init is unlikely to fail
     errno = EAGAIN; // resource temporarily unavailable
-    goto end;
+    return NULL;
   }
 
   struct curl_string resp_string;
   init_string(&resp_string);
 
   curl_easy_setopt(curl_handle, CURLOPT_URL, url);
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, writefunc);
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_ptr_writefunc);
   curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, &resp_string);
 
   CURLcode res = curl_easy_perform(curl_handle);
@@ -69,12 +75,39 @@ char *request_get_body(const char *url) {
   if (res != CURLE_OK) {
     fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
     errno = EIO; // I/O error
-    goto end;
+
+    free(resp_string.ptr);
+    return NULL;
   }
 
   return resp_string.ptr;
+}
 
-end:
-  free(resp_string.ptr);
-  return NULL;
+char *request_get_location(const char *url) {
+  CURL *curl_handle = curl_easy_init();
+  if (!curl_handle) {
+    errno = EAGAIN; // resource temporarily unavailable
+    return NULL;
+  }
+
+  curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_null_writefunc);
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, NULL);
+
+  CURLcode res = curl_easy_perform(curl_handle);
+  if (res != CURLE_OK) {
+    fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+    curl_easy_cleanup(curl_handle);
+    return NULL;
+  }
+
+  char *location = NULL;
+  res = curl_easy_getinfo(curl_handle, CURLINFO_REDIRECT_URL, &location);
+  if (res == CURLE_OK && location) {
+    location = strdup(location);
+  } else if (res != CURLE_OK) {
+    fprintf(stderr, "curl_easy_getinfo() failed: %s\n", curl_easy_strerror(res));
+  }
+  curl_easy_cleanup(curl_handle);
+  return location;
 }
