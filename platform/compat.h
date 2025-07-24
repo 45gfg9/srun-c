@@ -23,7 +23,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <errno.h>
-#include "../srun.h"
+#include "srun.h"
 
 #ifndef srun_log
 #define srun_log(target_lvl, handle_lvl, ...) \

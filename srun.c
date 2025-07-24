@@ -4,9 +4,8 @@
  * as published by Sam Hocevar. See the LICENSE file for more details.
  */
 
-#include "platform/compat.h"
+#include "compat.h"
 
-#include "srun.h"
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>

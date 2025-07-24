@@ -28,6 +28,11 @@ if (LINUX)
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fsanitize=leak")
 endif ()
 
+target_include_directories(${PROJECT_NAME} PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/platform"
+)
+
 # find current Git revision
 find_package(Git)
 if (GIT_FOUND)
