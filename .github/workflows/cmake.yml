@@ -32,7 +32,7 @@ jobs:
         if: ${{ runner.os == 'macOS' }}
         run: |
           brew update
-          brew install cmake openssl cjson
+          brew install cmake cjson
 
       - name: 'Linux: Install dependencies'
         if: ${{ runner.os == 'Linux' }}
