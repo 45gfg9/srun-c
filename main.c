@@ -239,6 +239,7 @@ static int perform_login(srun_handle handle) {
   if (cli_args.username[0] == '\0') {
     // can't set password without username
     cli_args.password[0] = '\0';
+    // FIXME: dynamic buffer
     readpassphrase("Username: ", cli_args.username, sizeof cli_args.username, RPP_ECHO_ON);
     srun_setopt(handle, SRUNOPT_USERNAME, cli_args.username);
   }
@@ -261,9 +262,21 @@ static int perform_login(srun_handle handle) {
 }
 
 static int perform_logout(srun_handle handle) {
-  // TODO
-  (void)handle;
-  return -1;
+  if (cli_args.username[0] == '\0') {
+    readpassphrase("Username: ", cli_args.username, sizeof cli_args.username, RPP_ECHO_ON);
+    srun_setopt(handle, SRUNOPT_USERNAME, cli_args.username);
+  }
+
+  int result = srun_logout(handle);
+  if (result == SRUNE_OK) {
+    printf("Successfully logged out.\n");
+  } else {
+    printf("Logout failed: error %d\n", result);
+    if (result == SRUNE_SYSTEM && errno) {
+      perror(prog_name);
+    }
+  }
+  return result;
 }
 
 static void sigsegv_handler(int signum) {

@@ -284,23 +284,14 @@ static int json_strip_callback(char *buf) {
   }
 }
 
-int srun_login(srun_handle handle) {
-  if (!handle->auth_server || !handle->username || !handle->password || handle->auth_server[0] == '\0'
-      || handle->username[0] == '\0' || handle->password[0] == '\0') {
-    return SRUNE_INVALID_CTX;
-  }
-
-  // 1. construct challenge request URL
+static int get_challenge(struct chall_response *chall, srun_handle handle, unsigned long long req_time) {
   // callback parameter serves no purpose
-  const unsigned long long req_time = (unsigned long long)time(NULL);
   const char *const chall_fmtstr = "%s" PATH_GET_CHAL "?callback=jQuery98"
                                    "&username=%s&ip=%s&_=%llu000";
   char *chall_url;
   if (asprintf(&chall_url, chall_fmtstr, handle->auth_server, handle->username, handle->client_ip, req_time) == -1) {
-    goto nomem_fail;
+    return SRUNE_SYSTEM;
   }
-
-  // 2. perform challenge request and get response
   srun_log_debug(handle->verbosity, "Challenge URL: %s\n", chall_url);
   char *resp_buf = request_get(chall_url);
   free(chall_url);
@@ -311,15 +302,30 @@ int srun_login(srun_handle handle) {
   }
   srun_log_verbose(handle->verbosity, "Challenge response: %s\n", resp_buf);
 
-  // 3. parse challenge response
-  struct chall_response chall;
-
-  if (json_strip_callback(resp_buf) != 0 || parse_chall_response(&chall, resp_buf) != 0) {
+  if (json_strip_callback(resp_buf) != 0 || parse_chall_response(chall, resp_buf) != 0) {
     fprintf(stderr, "Invalid challenge response: %s\n", resp_buf);
     free(resp_buf);
     return SRUNE_NETWORK;
   }
   free(resp_buf);
+  return SRUNE_OK;
+}
+
+int srun_login(srun_handle handle) {
+  if (!handle->auth_server || !handle->username || !handle->password || handle->auth_server[0] == '\0'
+      || handle->username[0] == '\0' || handle->password[0] == '\0') {
+    return SRUNE_INVALID_CTX;
+  }
+
+  // 1. construct challenge request URL
+  // callback parameter serves no purpose
+  const unsigned long long req_time = (unsigned long long)time(NULL);
+
+  struct chall_response chall;
+  int retval = get_challenge(&chall, handle, req_time);
+  if (retval != SRUNE_OK) {
+    return retval;
+  }
 
   const size_t token_len = strlen(chall.token);
 
@@ -415,7 +421,7 @@ nomem_fail:
 
   // 6. perform portal request
   srun_log_debug(handle->verbosity, "Portal URL: %s\n", portal_url);
-  resp_buf = request_get(portal_url);
+  char *resp_buf = request_get(portal_url);
   free(portal_url);
 
   if (!resp_buf) {
@@ -435,6 +441,65 @@ nomem_fail:
 
   if (strcmp(resp.error, "ok") == 0) {
     // login successful
+    free_portal_response(&resp);
+    return SRUNE_OK;
+  }
+
+  fprintf(stderr, "%s", resp.error);
+  if (resp.ecode[0] != '\0') {
+    fprintf(stderr, " (%s)", resp.ecode);
+  }
+  if (resp.error_msg[0] != '\0') {
+    fprintf(stderr, ": %s", resp.error_msg);
+  }
+  fprintf(stderr, "\n");
+  free_portal_response(&resp);
+  return SRUNE_NETWORK;
+}
+
+int srun_logout(srun_handle handle) {
+  const unsigned long long req_time = (unsigned long long)time(NULL);
+
+  if (handle->client_ip[0] == '\0') {
+    // get client_ip from challenge response
+    struct chall_response chall;
+    int retval = get_challenge(&chall, handle, req_time);
+    if (retval != SRUNE_OK) {
+      return retval;
+    }
+    srun_setopt(handle, SRUNOPT_CLIENT_IP, chall.client_ip);
+    free_chall_response(&chall);
+  }
+
+  const char *const logout_fmtstr = "%s" PATH_PORTAL "?callback=jQuery98&action=logout&_=%llu000"
+                                    "&username=%s&ip=%s&ac_id=%d";
+  char *logout_url;
+  if (asprintf(&logout_url, logout_fmtstr, handle->auth_server, req_time, handle->username, handle->client_ip,
+               handle->ac_id)
+      == -1) {
+    return SRUNE_SYSTEM; // memory allocation failed
+  }
+
+  srun_log_debug(handle->verbosity, "Logout URL: %s\n", logout_url);
+  char *resp_buf = request_get(logout_url);
+  free(logout_url);
+
+  if (!resp_buf) {
+    fprintf(stderr, "Failed to get logout response\n");
+    return SRUNE_NETWORK;
+  }
+  srun_log_verbose(handle->verbosity, "Portal response: %s\n", resp_buf);
+
+  struct portal_response resp;
+  if (json_strip_callback(resp_buf) != 0 || parse_portal_response(&resp, resp_buf) != 0) {
+    fprintf(stderr, "Invalid portal response: %s\n", resp_buf);
+    free(resp_buf);
+    return SRUNE_NETWORK;
+  }
+  free(resp_buf);
+
+  if (strcmp(resp.error, "ok") == 0) {
+    // logout successful
     free_portal_response(&resp);
     return SRUNE_OK;
   }
