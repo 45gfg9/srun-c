@@ -41,6 +41,35 @@ struct chall_response {
   char *client_ip;
 };
 
+struct portal_response {
+  char *access_token;
+  char *ecode;
+  char *error;
+  char *error_msg;
+};
+
+static inline void free_chall_response(struct chall_response *resp) {
+  if (resp) {
+    free(resp->token);
+    resp->token = NULL;
+    free(resp->client_ip);
+    resp->client_ip = NULL;
+  }
+}
+
+static inline void free_portal_response(struct portal_response *resp) {
+  if (resp) {
+    free(resp->access_token);
+    resp->access_token = NULL;
+    free(resp->ecode);
+    resp->ecode = NULL;
+    free(resp->error);
+    resp->error = NULL;
+    free(resp->error_msg);
+    resp->error_msg = NULL;
+  }
+}
+
 /**
  * Sends a GET request to the specified URL.
  *
@@ -60,6 +89,17 @@ char *request_get(const char *url);
  * @returns 0 on success, or -1 on error, in which case errno is set appropriately.
  */
 int parse_chall_response(struct chall_response *response, const char *json);
+
+/**
+ * Parses the JSON response from the portal request.
+ *
+ * @param json The JSON response to parse. It can be freed after use.
+ * @param response A struct to hold the parsed portal information.
+ * Members of the struct must be freed by the caller.
+ * If an error occurs, the struct is not modified.
+ * @returns 0 on success, or -1 on error, in which case errno is set appropriately.
+ */
+int parse_portal_response(struct portal_response *response, const char *json);
 
 /**
  * Creates the info field for the portal request.
