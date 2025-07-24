@@ -23,7 +23,7 @@ struct srun_context {
   int quiet;
 };
 
-struct chal_response {
+struct chall_response {
   char *challenge;
   char *client_ip;
 };
@@ -46,7 +46,7 @@ char *request_get(const char *url);
  * If an error occurs, the struct is not modified.
  * @returns 0 on success, or -1 on error, in which case errno is set appropriately.
  */
-int parse_chal_response(struct chal_response *response, const char *json);
+int parse_chall_response(struct chall_response *response, const char *json);
 
 /**
  * Creates the info field for the portal request.

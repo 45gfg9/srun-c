@@ -78,6 +78,11 @@ typedef enum srun_option {
 #define SRUNE_INVALID_CTX (-2)
 
 /**
+ * System error. See errno.
+ */
+#define SRUNE_SYSTEM (-3)
+
+/**
  * Create a new srun handle. This handle must be freed by `srun_cleanup`.
  *
  * @return A new srun handle

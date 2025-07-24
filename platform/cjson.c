@@ -3,7 +3,7 @@
 #include <string.h>
 #include <cjson/cJSON.h>
 
-int parse_chal_response(struct chal_response *response, const char *json) {
+int parse_chall_response(struct chall_response *response, const char *json) {
   cJSON *root = cJSON_Parse(json);
   if (!root) {
     errno = EINVAL; // Invalid JSON format
