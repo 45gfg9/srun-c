@@ -36,7 +36,6 @@ static size_t s_encode(const uint8_t *msg, size_t msg_len, uint32_t *dst, int ap
   size_t buf_len = ((msg_len + 3) / 4) * 4;
   uint8_t *buf = calloc(buf_len, 1);
   if (!buf) {
-    errno = ENOMEM;
     return 0;
   }
   memcpy(buf, msg, msg_len);
@@ -109,7 +108,6 @@ static size_t x_encode(const uint8_t *src, size_t src_len, const uint8_t *key, s
   uint32_t encoded_key[4] = {0};
 
   if (!encoded_msg) {
-    errno = ENOMEM;
     return 0;
   }
 
@@ -156,7 +154,6 @@ static size_t b64_encode(const char alpha[static 64], char pad_char, const uint8
   size_t buf_len = ((src_len + 2) / 3) * 3;
   uint8_t *buf = calloc(buf_len, 1);
   if (!buf) {
-    errno = ENOMEM;
     return 0;
   }
   memcpy(buf, src, src_len);
@@ -194,7 +191,6 @@ static char *url_encode(const char *str) {
   size_t len = strlen(str);
   char *enc = malloc(len * 3 + 1); // +1 for null terminator
   if (!enc) {
-    errno = ENOMEM;
     return NULL;
   }
 
@@ -217,10 +213,9 @@ srun_handle srun_create(void) {
   // allocate a new context
   srun_handle handle = calloc(1, sizeof(struct srun_context));
   if (!handle) {
-    errno = ENOMEM;
     return NULL;
   }
-  srun_setopt(handle, SRUNOPT_CLIENT_IP, "0.0.0.0");
+  srun_setopt(handle, SRUNOPT_CLIENT_IP, "");
   return handle;
 }
 
@@ -291,7 +286,8 @@ static int json_strip_callback(char *buf) {
 }
 
 int srun_login(srun_handle handle) {
-  if (!(handle->auth_server && handle->username && handle->password)) {
+  if (!handle->auth_server || !handle->username || !handle->password || handle->auth_server[0] == '\0'
+      || handle->username[0] == '\0' || handle->password[0] == '\0') {
     return SRUNE_INVALID_CTX;
   }
 
@@ -306,8 +302,15 @@ int srun_login(srun_handle handle) {
   }
 
   // 2. perform challenge request and get response
+  srun_log_debug(handle->verbosity, "Challenge URL: %s\n", chall_url);
   char *resp_buf = request_get(chall_url);
   free(chall_url);
+
+  if (!resp_buf) {
+    fprintf(stderr, "Failed to get challenge response\n");
+    return SRUNE_NETWORK;
+  }
+  srun_log_verbose(handle->verbosity, "Challenge response: %s\n", resp_buf);
 
   // 3. parse challenge response
   struct chall_response chall;
@@ -353,7 +356,6 @@ int srun_login(srun_handle handle) {
 nomem_fail_free_chall:
     free_chall_response(&chall);
 nomem_fail:
-    errno = ENOMEM;
     return SRUNE_SYSTEM;
   }
   x_encode((const uint8_t *)info_str, info_str_len, (const uint8_t *)chall.token, token_len, xenc_info, xenc_info_len);
@@ -413,8 +415,15 @@ nomem_fail:
   free(url_encoded_info);
 
   // 6. perform portal request
+  srun_log_debug(handle->verbosity, "Portal URL: %s\n", portal_url);
   resp_buf = request_get(portal_url);
   free(portal_url);
+
+  if (!resp_buf) {
+    fprintf(stderr, "Failed to get portal response\n");
+    return SRUNE_NETWORK;
+  }
+  srun_log_verbose(handle->verbosity, "Portal response: %s\n", resp_buf);
 
   // 7. parse portal response
   struct portal_response resp;
@@ -431,6 +440,14 @@ nomem_fail:
     return SRUNE_OK;
   }
 
+  fprintf(stderr, "%s", resp.error);
+  if (resp.ecode[0] != '\0') {
+    fprintf(stderr, " (%s)", resp.ecode);
+  }
+  if (resp.error_msg[0] != '\0') {
+    fprintf(stderr, ": %s", resp.error_msg);
+  }
+  fprintf(stderr, "\n");
   free_portal_response(&resp);
   return SRUNE_NETWORK;
 }

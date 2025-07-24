@@ -27,7 +27,6 @@ int parse_chall_response(struct chall_response *response, const char *json) {
 
   if (!response->token || !response->client_ip) {
     free_chall_response(response);
-    errno = ENOMEM;
     return -1;
   }
 
@@ -63,7 +62,6 @@ int parse_portal_response(struct portal_response *response, const char *json) {
 
   if (!response->error || !response->error_msg || !response->ecode) {
     free_portal_response(response);
-    errno = ENOMEM;
     return -1;
   }
 

@@ -25,6 +25,17 @@
 #include <errno.h>
 #include "../srun.h"
 
+#ifndef srun_log
+#define srun_log(target_lvl, handle_lvl, ...) \
+  do {                                        \
+    if (handle_lvl >= target_lvl) {           \
+      fprintf(stderr, __VA_ARGS__);           \
+    }                                         \
+  } while (0)
+#define srun_log_verbose(lvl, ...) srun_log(SRUN_VERBOSITY_VERBOSE, lvl, __VA_ARGS__)
+#define srun_log_debug(lvl, ...) srun_log(SRUN_VERBOSITY_DEBUG, lvl, __VA_ARGS__)
+#endif
+
 struct srun_context {
   char *username;
   char *password;
