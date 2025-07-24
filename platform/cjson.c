@@ -2,7 +2,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if ESP_PLATFORM
+#include <cJSON.h>
+#else
 #include <cjson/cJSON.h>
+#endif
 
 int parse_chall_response(struct chall_response *response, const char *json) {
   cJSON *root = cJSON_Parse(json);
