@@ -311,6 +311,25 @@ static int get_challenge(struct chall_response *chall, srun_handle handle, unsig
   return SRUNE_OK;
 }
 
+static int get_portal(struct portal_response *chall, srun_handle handle, const char *url) {
+  srun_log_debug(handle->verbosity, "Portal URL: %s\n", url);
+  char *resp_buf = request_get(url);
+
+  if (!resp_buf) {
+    fprintf(stderr, "Failed to get portal response\n");
+    return SRUNE_NETWORK;
+  }
+  srun_log_verbose(handle->verbosity, "Portal response: %s\n", resp_buf);
+
+  if (json_strip_callback(resp_buf) != 0 || parse_portal_response(chall, resp_buf) != 0) {
+    fprintf(stderr, "Invalid portal response: %s\n", resp_buf);
+    free(resp_buf);
+    return SRUNE_NETWORK;
+  }
+  free(resp_buf);
+  return SRUNE_OK;
+}
+
 int srun_login(srun_handle handle) {
   if (!handle->auth_server || !handle->username || !handle->password || handle->auth_server[0] == '\0'
       || handle->username[0] == '\0' || handle->password[0] == '\0') {
@@ -333,7 +352,7 @@ int srun_login(srun_handle handle) {
     // if client_ip is not set, use the one from challenge response
     srun_setopt(handle, SRUNOPT_CLIENT_IP, chall.client_ip);
     if (!handle->client_ip) {
-      goto nomem_fail_free_chall;
+      goto nomem_free_chall;
     }
   }
 
@@ -358,9 +377,8 @@ int srun_login(srun_handle handle) {
   uint8_t *xenc_info = malloc(xenc_info_len);
   if (!xenc_info) {
     free(info_str);
-nomem_fail_free_chall:
+nomem_free_chall:
     free_chall_response(&chall);
-nomem_fail:
     return SRUNE_SYSTEM;
   }
   x_encode((const uint8_t *)info_str, info_str_len, (const uint8_t *)chall.token, token_len, xenc_info, xenc_info_len);
@@ -371,7 +389,7 @@ nomem_fail:
   char *const b64enc_info = malloc(8 + b64enc_info_len); // "{SRBX1}" + '\0'
   if (!b64enc_info) {
     free(xenc_info);
-    goto nomem_fail_free_chall;
+    goto nomem_free_chall;
   }
   strcpy(b64enc_info, "{SRBX1}");
   b64_encode("LVoJPiCN2R8G90yg+hmFHuacZ1OWMnrsSTXkYpUq/3dlbfKwv6xztjI7DeBE45QA", '=', xenc_info, xenc_info_len,
@@ -388,7 +406,7 @@ nomem_fail:
                chall.token, b64enc_info)
       == -1) {
     free(b64enc_info);
-    goto nomem_fail_free_chall;
+    goto nomem_free_chall;
   }
   free_chall_response(&chall);
 
@@ -404,7 +422,7 @@ nomem_fail:
   char *url_encoded_info = url_encode(b64enc_info);
   free(b64enc_info);
   if (!url_encoded_info) {
-    goto nomem_fail;
+    return SRUNE_SYSTEM;
   }
 
   const char *const portal_fmtstr = "%s" PATH_PORTAL "?callback=jQuery98&n=%s&type=%s&_=%llu000"
@@ -415,29 +433,17 @@ nomem_fail:
                hmac_md5_hex, handle->ac_id, handle->client_ip, sha1_hex, url_encoded_info)
       == -1) {
     free(url_encoded_info);
-    goto nomem_fail;
+    return SRUNE_SYSTEM;
   }
   free(url_encoded_info);
 
   // 6. perform portal request
-  srun_log_debug(handle->verbosity, "Portal URL: %s\n", portal_url);
-  char *resp_buf = request_get(portal_url);
-  free(portal_url);
-
-  if (!resp_buf) {
-    fprintf(stderr, "Failed to get portal response\n");
-    return SRUNE_NETWORK;
-  }
-  srun_log_verbose(handle->verbosity, "Portal response: %s\n", resp_buf);
-
-  // 7. parse portal response
   struct portal_response resp;
-  if (json_strip_callback(resp_buf) != 0 || parse_portal_response(&resp, resp_buf) != 0) {
-    fprintf(stderr, "Invalid portal response: %s\n", resp_buf);
-    free(resp_buf);
-    return SRUNE_NETWORK;
+  retval = get_portal(&resp, handle, portal_url);
+  free(portal_url);
+  if (retval != SRUNE_OK) {
+    return retval;
   }
-  free(resp_buf);
 
   if (strcmp(resp.error, "ok") == 0) {
     // login successful
@@ -471,8 +477,8 @@ int srun_logout(srun_handle handle) {
     free_chall_response(&chall);
   }
 
-  const char *const logout_fmtstr = "%s" PATH_PORTAL "?callback=jQuery98&action=logout&_=%llu000"
-                                    "&username=%s&ip=%s&ac_id=%d";
+  const char *const logout_fmtstr = "%s" PATH_PORTAL "?callback=jQuery98&action=logout"
+                                    "&_=%llu000&username=%s&ip=%s&ac_id=%d";
   char *logout_url;
   if (asprintf(&logout_url, logout_fmtstr, handle->auth_server, req_time, handle->username, handle->client_ip,
                handle->ac_id)
@@ -480,23 +486,12 @@ int srun_logout(srun_handle handle) {
     return SRUNE_SYSTEM; // memory allocation failed
   }
 
-  srun_log_debug(handle->verbosity, "Logout URL: %s\n", logout_url);
-  char *resp_buf = request_get(logout_url);
-  free(logout_url);
-
-  if (!resp_buf) {
-    fprintf(stderr, "Failed to get logout response\n");
-    return SRUNE_NETWORK;
-  }
-  srun_log_verbose(handle->verbosity, "Portal response: %s\n", resp_buf);
-
   struct portal_response resp;
-  if (json_strip_callback(resp_buf) != 0 || parse_portal_response(&resp, resp_buf) != 0) {
-    fprintf(stderr, "Invalid portal response: %s\n", resp_buf);
-    free(resp_buf);
-    return SRUNE_NETWORK;
+  int retval = get_portal(&resp, handle, logout_url);
+  free(logout_url);
+  if (retval != SRUNE_OK) {
+    return retval;
   }
-  free(resp_buf);
 
   if (strcmp(resp.error, "ok") == 0) {
     // logout successful
