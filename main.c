@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <libgen.h>
 #include <errno.h>
+#include <signal.h>
 #include <sys/wait.h>
 
 #if defined __APPLE__
@@ -37,15 +38,13 @@ enum {
 static const char *prog_name;
 
 static struct {
-  char auth_server[64];
-
-  char client_ip[64];
-
-  char username[64];
-
-  char password[128];
+  char *auth_server;
+  char *client_ip;
+  char *username;
+  char *password;
 
   char *cert_pem;
+  int ac_id;
 
   enum srun_verbosity verbosity;
 } cli_args;
@@ -131,27 +130,28 @@ static char *read_cert_file(const char *path) {
 
   // read file contents
   fseek(f, 0, SEEK_END);
-  size_t size = ftell(f);
-  fseek(f, 0, SEEK_SET);
-  cli_args.cert_pem = malloc(size + 1);
+  size_t file_size = ftell(f);
+  rewind(f);
+  cli_args.cert_pem = malloc(file_size + 1);
   if (!cli_args.cert_pem) {
     perror(prog_name);
     fclose(f);
     return NULL;
   }
-  if (fread(cli_args.cert_pem, 1, size, f) != size) {
-    perror(prog_name);
-    fclose(f);
+  fread(cli_args.cert_pem, 1, file_size, f);
+  fclose(f);
+
+  char *cert_begin = strstr(cli_args.cert_pem, "-----BEGIN CERTIFICATE-----");
+  if (!cert_begin) {
+    fprintf(stderr, "Invalid certificate file: %s\n", path);
     free(cli_args.cert_pem);
     cli_args.cert_pem = NULL;
     return NULL;
   }
-  fclose(f);
-
-  if (!strstr(cli_args.cert_pem, "-----BEGIN CERTIFICATE-----")) {
-    fprintf(stderr, "Invalid PEM certificate: %s\n", path);
-    free(cli_args.cert_pem);
-    cli_args.cert_pem = NULL;
+  if (cert_begin != cli_args.cert_pem) {
+    size_t cert_len = strlen(cert_begin);
+    memmove(cli_args.cert_pem, cert_begin, cert_len);
+    cli_args.cert_pem[cert_len] = '\0';
   }
 
   return cli_args.cert_pem;
@@ -179,16 +179,20 @@ static void parse_opt(int argc, char *const *argv) {
         print_help();
         exit(EXIT_SUCCESS);
       case 's':
-        strlcpy(cli_args.auth_server, optarg, sizeof cli_args.auth_server);
+        free(cli_args.auth_server);
+        cli_args.auth_server = strdup(optarg);
         break;
       case 'u':
-        strlcpy(cli_args.username, optarg, sizeof cli_args.username);
+        free(cli_args.username);
+        cli_args.username = strdup(optarg);
         break;
       case 'p':
-        strlcpy(cli_args.password, optarg, sizeof cli_args.password);
+        free(cli_args.password);
+        cli_args.password = strdup(optarg);
         break;
       case 'i':
-        strlcpy(cli_args.client_ip, optarg, sizeof cli_args.client_ip);
+        free(cli_args.client_ip);
+        cli_args.client_ip = strdup(optarg);
         break;
       case 'c':
         read_cert_file(optarg);
@@ -208,21 +212,20 @@ static void parse_opt(int argc, char *const *argv) {
         exit(EXIT_SUCCESS);
       default:
         fprintf(stderr, "Try `%s --help' for more information.\n", prog_name);
-        exit(-1);
+        exit(EXIT_FAILURE);
     }
   }
 }
 
 static int perform_login(srun_handle handle) {
-  if (cli_args.username[0] == 0) {
+  if (cli_args.username[0] == '\0') {
     // can't set password without username
-    memset(cli_args.password, 0, sizeof cli_args.password);
-
+    cli_args.password[0] = '\0';
     readpassphrase("Username: ", cli_args.username, sizeof cli_args.username, RPP_ECHO_ON);
     srun_setopt(handle, SRUNOPT_USERNAME, cli_args.username);
   }
 
-  if (cli_args.password[0] == 0) {
+  if (cli_args.password[0] == '\0') {
     readpassphrase("Password: ", cli_args.password, sizeof cli_args.password, RPP_ECHO_OFF);
     srun_setopt(handle, SRUNOPT_PASSWORD, cli_args.password);
   }
@@ -240,20 +243,28 @@ static int perform_login(srun_handle handle) {
 }
 
 static int perform_logout(srun_handle handle) {
-  // int result = srun_logout(handle);
-  // if (result == SRUNE_OK && cli_args.verbosity > -1) {
-  //   fprintf(stderr, "Successfully logged out.\n");
-  // } else if (result != SRUNE_OK && cli_args.verbosity > -2) {
-  //   fprintf(stderr, "Logout failed: error %d\n", result);
-  // }
-  // return result;
+  // TODO
+  (void)handle;
   return -1;
 }
 
+static void sigsegv_handler(int signum) {
+  if (errno) {
+    write(STDERR_FILENO, prog_name, strlen(prog_name));
+    write(STDERR_FILENO, ": ", 2);
+    const char *errstr = strerror(errno);
+    write(STDERR_FILENO, errstr, strlen(errstr));
+    write(STDERR_FILENO, "\n", 1);
+  }
+
+  signal(signum, SIG_DFL); // reset the signal handler to default
+  raise(signum);           // re-raise the signal to terminate the program
+}
+
 int main(int argc, char **argv) {
-  int retval = -1;
+  int retval = EXIT_FAILURE;
   prog_name = basename(argv[0]);
-  cli_args.verbosity = SRUN_VERBOSITY_NORMAL;
+  signal(SIGSEGV, sigsegv_handler);
 
   if (argc == 1) {
     goto no_action;
@@ -261,21 +272,21 @@ int main(int argc, char **argv) {
 
   // provide default values
 #ifdef SRUN_CONF_AUTH_URL
-  strlcpy(cli_args.auth_server, SRUN_CONF_AUTH_URL, sizeof cli_args.auth_server);
+  cli_args.auth_server = strdup(SRUN_CONF_AUTH_URL);
 #endif
 #ifdef SRUN_CONF_DEFAULT_USERNAME
-  strlcpy(cli_args.username, SRUN_CONF_DEFAULT_USERNAME, sizeof cli_args.username);
+  cli_args.username = strdup(SRUN_CONF_DEFAULT_USERNAME);
 #endif
 #ifdef SRUN_CONF_DEFAULT_PASSWORD
-  strlcpy(cli_args.password, SRUN_CONF_DEFAULT_PASSWORD, sizeof cli_args.password);
+  cli_args.password = strdup(SRUN_CONF_DEFAULT_PASSWORD);
 #endif
 #ifdef SRUN_CONF_DEFAULT_CERT
-  cli_args.cert_pem = malloc(strlen(SRUN_CONF_DEFAULT_CERT) + 1);
-  strcpy(cli_args.cert_pem, SRUN_CONF_DEFAULT_CERT);
+  cli_args.cert_pem = strdup(SRUN_CONF_DEFAULT_CERT);
 #endif
 #ifdef SRUN_CONF_DEFAULT_CLIENT_IP
-  strlcpy(cli_args.client_ip, SRUN_CONF_DEFAULT_CLIENT_IP, sizeof cli_args.client_ip);
+  cli_args.client_ip = strdup(SRUN_CONF_DEFAULT_CLIENT_IP);
 #endif
+  cli_args.verbosity = SRUN_VERBOSITY_NORMAL;
 
   const char *action_str = argv[1];
 
@@ -323,6 +334,10 @@ help_guide:
   handle = NULL;
 
 exit_cleanup:
+  free(cli_args.auth_server);
+  free(cli_args.username);
+  free(cli_args.password);
+  free(cli_args.client_ip);
   free(cli_args.cert_pem);
   memset(&cli_args, 0, sizeof cli_args);
 
