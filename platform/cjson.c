@@ -35,19 +35,16 @@ int parse_portal_response(struct portal_response *response, const char *json) {
     return -1;
   }
 
-  cJSON *access_token = cJSON_GetObjectItem(root, "access_token");
   cJSON *ecode = cJSON_GetObjectItem(root, "ecode");
   cJSON *error = cJSON_GetObjectItem(root, "error");
   cJSON *error_msg = cJSON_GetObjectItem(root, "error_msg");
 
-  if (!cJSON_IsString(access_token) || !cJSON_IsString(ecode) || !cJSON_IsNumber(ecode) || !cJSON_IsString(error)
-      || !cJSON_IsString(error_msg)) {
+  if (!(cJSON_IsString(ecode) || cJSON_IsNumber(ecode)) || !cJSON_IsString(error) || !cJSON_IsString(error_msg)) {
     cJSON_Delete(root);
     errno = EINVAL; // Missing or invalid fields
     return -1;
   }
 
-  response->access_token = strdup(access_token->valuestring);
   response->error = strdup(error->valuestring);
   response->error_msg = strdup(error_msg->valuestring);
   if (cJSON_IsString(ecode)) {

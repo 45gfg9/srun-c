@@ -33,7 +33,7 @@ struct srun_context {
 
   int ac_id;
 
-  int quiet;
+  enum srun_verbosity verbosity;
 };
 
 struct chall_response {
@@ -42,7 +42,6 @@ struct chall_response {
 };
 
 struct portal_response {
-  char *access_token;
   char *ecode;
   char *error;
   char *error_msg;
@@ -59,8 +58,6 @@ static inline void free_chall_response(struct chall_response *resp) {
 
 static inline void free_portal_response(struct portal_response *resp) {
   if (resp) {
-    free(resp->access_token);
-    resp->access_token = NULL;
     free(resp->ecode);
     resp->ecode = NULL;
     free(resp->error);
