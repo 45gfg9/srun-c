@@ -7,6 +7,19 @@
 #ifndef __SRUN_PLATFORM_COMPAT_H__
 #define __SRUN_PLATFORM_COMPAT_H__
 
+// see asprintf(3)
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE
+#endif
+
+// see strdup(3)
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 600
+#endif
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <errno.h>

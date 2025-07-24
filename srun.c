@@ -4,18 +4,7 @@
  * as published by Sam Hocevar. See the LICENSE file for more details.
  */
 
-// see asprintf(3)
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-#ifndef _DARWIN_C_SOURCE
-#define _DARWIN_C_SOURCE
-#endif
-
-// see strdup(3)
-#ifndef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 600
-#endif
+#include "platform/compat.h"
 
 #include "srun.h"
 #include <stdio.h>
@@ -24,8 +13,6 @@
 #include <stdarg.h>
 #include <time.h>
 #include <assert.h>
-
-#include "platform/compat.h"
 
 #define PATH_GET_CHAL "/cgi-bin/get_challenge"
 #define PATH_PORTAL "/cgi-bin/srun_portal"
