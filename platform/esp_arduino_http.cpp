@@ -34,3 +34,25 @@ char *request_get_body(const char *url) {
   http.end();
   return response;
 }
+
+char *request_get_location(const char *url) {
+  char *response = nullptr;
+  HTTPClient http;
+
+#if ESP8266
+  WiFiClient client;
+  http.begin(client, url);
+#else
+  http.begin(url);
+#endif
+
+  int httpCode = http.GET();
+  if (httpCode >= 300 && httpCode < 400) {
+    String location = http.getLocation();
+    if (!location.isEmpty()) {
+      response = strdup(location.c_str());
+    }
+  }
+  http.end();
+  return response;
+}
