@@ -190,6 +190,9 @@ static void parse_opt(int argc, char *const *argv) {
         free(cli_args.password);
         cli_args.password = strdup(optarg);
         break;
+      case 'a':
+        cli_args.ac_id = (int)strtol(optarg, NULL, 0);
+        break;
       case 'i':
         free(cli_args.client_ip);
         cli_args.client_ip = strdup(optarg);
@@ -280,6 +283,9 @@ int main(int argc, char **argv) {
 #ifdef SRUN_CONF_DEFAULT_PASSWORD
   cli_args.password = strdup(SRUN_CONF_DEFAULT_PASSWORD);
 #endif
+#ifdef SRUN_CONF_DEFAULT_AC_ID
+  cli_args.ac_id = SRUN_CONF_DEFAULT_AC_ID;
+#endif
 #ifdef SRUN_CONF_DEFAULT_CERT
   cli_args.cert_pem = strdup(SRUN_CONF_DEFAULT_CERT);
 #endif
@@ -310,7 +316,7 @@ help_guide:
     goto exit_cleanup;
   }
 
-  if (!cli_args.auth_server[0]) {
+  if (!cli_args.auth_server || !cli_args.auth_server[0]) {
     fprintf(stderr, "Missing fields for %s.\n", action_str);
     goto help_guide;
   }
@@ -318,10 +324,19 @@ help_guide:
   srun_handle handle = srun_create();
 
   srun_setopt(handle, SRUNOPT_AUTH_SERVER, cli_args.auth_server);
-  srun_setopt(handle, SRUNOPT_USERNAME, cli_args.username);
-  srun_setopt(handle, SRUNOPT_PASSWORD, cli_args.password);
-  srun_setopt(handle, SRUNOPT_CLIENT_IP, cli_args.client_ip);
-  // srun_setopt(handle, SRUNOPT_SERVER_CERT, cli_args.cert_pem);
+  srun_setopt(handle, SRUNOPT_AC_ID, cli_args.ac_id);
+  if (cli_args.username) {
+    srun_setopt(handle, SRUNOPT_USERNAME, cli_args.username);
+  }
+  if (cli_args.password) {
+    srun_setopt(handle, SRUNOPT_PASSWORD, cli_args.password);
+  }
+  if (cli_args.client_ip) {
+    srun_setopt(handle, SRUNOPT_CLIENT_IP, cli_args.client_ip);
+  }
+  // if (cli_args.cert_pem) {
+  //   srun_setopt(handle, SRUNOPT_SERVER_CERT, cli_args.cert_pem);
+  // }
   srun_setopt(handle, SRUNOPT_VERBOSITY, cli_args.verbosity);
 
   if (action == ACTION_LOGIN) {

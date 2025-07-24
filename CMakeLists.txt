@@ -13,6 +13,7 @@ project(srun VERSION 0.13)
 #set(SRUN_CONF_AUTH_URL "https://example.com")
 #set(SRUN_CONF_DEFAULT_USERNAME "TanikazeAmane")
 #set(SRUN_CONF_DEFAULT_PASSWORD "p4ssw@rd")
+#set(SRUN_CONF_DEFAULT_AC_ID 12)
 #set(SRUN_CONF_DEFAULT_CERTFILE "example-cert.pem")
 #set(SRUN_CONF_DEFAULT_CLIENT_IP "0.0.0.0")
 
