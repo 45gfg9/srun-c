@@ -107,6 +107,9 @@ static void print_help(void) {
   puts("          use PASSWORD to login");
   puts("          If not specified, the program will ask interactively");
   puts("          Password without username is not allowed and is ignored");
+  puts("  -a, --ac-id=ID");
+  puts("          use ID as ac_id for the login request");
+  puts("          If not specified, try to guess from the authentication server");
   puts("  -i, --client-ip=IP");
   puts("          use IP as the client IP");
   puts("  -c, --cert-file=FILE");
@@ -163,6 +166,7 @@ static void parse_opt(int argc, char *const *argv) {
       {"auth-server", required_argument, NULL, 's'},
       {"username", required_argument, NULL, 'u'},
       {"password", required_argument, NULL, 'p'},
+      {"ac-id", required_argument, NULL, 'a'},
       {"client-ip", required_argument, NULL, 'i'},
       {"cert-file", required_argument, NULL, 'c'},
       {"quiet", no_argument, NULL, 'q'},
@@ -170,7 +174,7 @@ static void parse_opt(int argc, char *const *argv) {
       {"version", no_argument, NULL, 'V'},
       {},
   };
-  static const char *const SHORT_OPTS = "hf:s:u:p:i:c:qvV";
+  static const char *const SHORT_OPTS = "hs:u:p:a:i:c:qvV";
 
   int c;
   while ((c = getopt_long(argc, argv, SHORT_OPTS, LONG_OPTS, NULL)) != -1) {
