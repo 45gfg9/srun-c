@@ -33,7 +33,7 @@
 static size_t s_encode(const uint8_t *msg, size_t msg_len, uint32_t *dst, int append_len) {
   // zero pad input
   size_t buf_len = ((msg_len + 3) / 4) * 4;
-  uint8_t *buf = calloc(buf_len, 1);
+  uint8_t *buf = (uint8_t *)calloc(buf_len, 1);
   if (!buf) {
     return 0;
   }
@@ -103,7 +103,7 @@ static size_t x_encode(const uint8_t *src, size_t src_len, const uint8_t *key, s
   }
 
   uint32_t n = (src_len + 3) / 4 + 1;
-  uint32_t *encoded_msg = malloc(n * sizeof(uint32_t));
+  uint32_t *encoded_msg = (uint32_t *)malloc(n * sizeof(uint32_t));
   uint32_t encoded_key[4] = {0};
 
   if (!encoded_msg) {
@@ -141,8 +141,8 @@ static size_t x_encode(const uint8_t *src, size_t src_len, const uint8_t *key, s
  * @param dst_len The length of the destination buffer.
  * @returns The number of bytes written to the destination buffer, including the trailing '\0'.
  */
-static size_t b64_encode(const char alpha[static 64], char pad_char, const uint8_t *src, size_t src_len, char *dst,
-                         size_t dst_len) {
+static size_t b64_encode(const char alpha[SRUN_PARAM_STATIC 64], char pad_char, const uint8_t *src, size_t src_len,
+                         char *dst, size_t dst_len) {
   // check if the destination buffer is large enough
   size_t ret_len = ((src_len + 2) / 3) * 4 + 1;
   if (dst_len < ret_len) {
@@ -151,7 +151,7 @@ static size_t b64_encode(const char alpha[static 64], char pad_char, const uint8
 
   // zero pad input
   size_t buf_len = ((src_len + 2) / 3) * 3;
-  uint8_t *buf = calloc(buf_len, 1);
+  uint8_t *buf = (uint8_t *)calloc(buf_len, 1);
   if (!buf) {
     return 0;
   }
@@ -188,7 +188,7 @@ static char *url_encode(const char *str) {
 
   // allocate enough memory: worst case every char is encoded as %XX (3x)
   size_t len = strlen(str);
-  char *enc = malloc(len * 3 + 1); // +1 for null terminator
+  char *enc = (char *)malloc(len * 3 + 1); // +1 for null terminator
   if (!enc) {
     return NULL;
   }
@@ -200,7 +200,7 @@ static char *url_encode(const char *str) {
     if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
       *penc++ = c;
     } else {
-      sprintf(penc, "%%%02X", c);
+      snprintf(penc, 4, "%%%02X", c);
       penc += 3;
     }
   }
@@ -208,9 +208,123 @@ static char *url_encode(const char *str) {
   return enc;
 }
 
+/**
+ * @brief Concatenates two URL parts, ensuring proper formatting.
+ *
+ * @param first The first part of the URL (base).
+ * @param second The second part of the URL (path or absolute URL).
+ * @returns A newly allocated string containing the concatenated URL, or NULL on error.
+ * The caller is responsible for freeing the returned string.
+ */
+static char *url_concat(const char *first, const char *second) {
+  // If 'second' is an absolute URL with an http or https scheme, it replaces 'first'.
+  if (strncmp(second, "http://", 7) == 0 || strncmp(second, "https://", 8) == 0) {
+    return strdup(second);
+  }
+
+  // If 'first' starts with a slash or is empty, it's an error.
+  if (first[0] == '/' || first[0] == '\0') {
+    return NULL;
+  }
+
+  // --- Determine the parts of the new URL ---
+
+  const char *prefix = "";
+  const char *base_part_start = first;
+  const char *path_part_start = second;
+  size_t base_part_len;
+  size_t path_part_len = strlen(path_part_start);
+
+  // Check if the 'first' URL has a scheme.
+  int has_scheme = (strncmp(first, "http://", 7) == 0 || strncmp(first, "https://", 8) == 0);
+
+  // If 'first' lacks a scheme, we'll prepend "http://".
+  if (!has_scheme) {
+    prefix = "http://";
+  }
+
+  // Determine the end of the base part from 'first'.
+  const char *base_part_end;
+  const char *first_end = first + strlen(first);
+
+  if (second[0] == '/') {
+    // If 'second' is an absolute path, the base is just the host of 'first'.
+    const char *host_start = first;
+    if (has_scheme) {
+      const char *scheme_end = strstr(first, "://");
+      if (scheme_end) {
+        host_start = scheme_end + 3;
+      }
+    }
+    const char *path_separator = strchr(host_start, '/');
+    base_part_end = path_separator ? path_separator : first_end;
+
+  } else {
+    // If 'second' is a relative path.
+    if (!has_scheme) {
+      // If 'first' has no scheme, its path component is ignored.
+      const char *path_separator = strchr(first, '/');
+      base_part_end = path_separator ? path_separator : first_end;
+    } else {
+      // Otherwise, use the full path from 'first', stripping any query/fragment.
+      const char *query_marker = strchr(first, '?');
+      const char *fragment_marker = strchr(first, '#');
+
+      if (query_marker && fragment_marker) {
+        base_part_end = (query_marker < fragment_marker) ? query_marker : fragment_marker;
+      } else if (query_marker) {
+        base_part_end = query_marker;
+      } else if (fragment_marker) {
+        base_part_end = fragment_marker;
+      } else {
+        base_part_end = first_end;
+      }
+    }
+  }
+
+  base_part_len = base_part_end - base_part_start;
+
+  // --- Normalize slashes between parts ---
+
+  // Trim trailing slashes from the base part.
+  while (base_part_len > 0 && base_part_start[base_part_len - 1] == '/') {
+    base_part_len--;
+  }
+
+  // Trim leading slashes from the path part.
+  while (path_part_len > 0 && path_part_start[0] == '/') {
+    path_part_start++;
+    path_part_len--;
+  }
+
+  // --- Allocate and construct the final string ---
+
+  size_t prefix_len = strlen(prefix);
+  // Total length = prefix + base + one '/' separator + path + null terminator.
+  size_t final_len = prefix_len + base_part_len + 1 + path_part_len;
+  char *result = (char *)malloc(final_len + 1);
+
+  if (!result) {
+    return NULL; // Allocation failed.
+  }
+
+  // Build the string piece by piece.
+  char *p = result;
+  memcpy(p, prefix, prefix_len);
+  p += prefix_len;
+  memcpy(p, base_part_start, base_part_len);
+  p += base_part_len;
+  *p++ = '/';
+  memcpy(p, path_part_start, path_part_len);
+  p += path_part_len;
+  *p = '\0';
+
+  return result;
+}
+
 srun_handle srun_create(void) {
   // allocate a new context
-  srun_handle handle = calloc(1, sizeof(struct srun_context));
+  srun_handle handle = (srun_handle)calloc(1, sizeof(struct srun_context));
   if (!handle) {
     return NULL;
   }
@@ -244,25 +358,25 @@ void srun_setopt(srun_handle handle, srun_option option, ...) {
   switch (option) {
     case SRUNOPT_AUTH_SERVER:
       free(handle->auth_server);
-      handle->auth_server = strdup(va_arg(args, char *));
+      handle->auth_server = strdup(va_arg(args, const char *));
       break;
     case SRUNOPT_USERNAME:
       free(handle->username);
-      handle->username = strdup(va_arg(args, char *));
+      handle->username = strdup(va_arg(args, const char *));
       break;
     case SRUNOPT_PASSWORD:
       free(handle->password);
-      handle->password = strdup(va_arg(args, char *));
+      handle->password = strdup(va_arg(args, const char *));
       break;
     case SRUNOPT_AC_ID:
       handle->ac_id = va_arg(args, int);
       break;
     case SRUNOPT_CLIENT_IP:
       free(handle->client_ip);
-      handle->client_ip = strdup(va_arg(args, char *));
+      handle->client_ip = strdup(va_arg(args, const char *));
       break;
     case SRUNOPT_VERBOSITY:
-      handle->verbosity = va_arg(args, int);
+      handle->verbosity = (enum srun_verbosity)va_arg(args, int);
       if (handle->verbosity < SRUN_VERBOSITY_SILENT) {
         handle->verbosity = SRUN_VERBOSITY_SILENT;
       } else if (handle->verbosity > SRUN_VERBOSITY_DEBUG) {
@@ -290,6 +404,12 @@ static int get_ac_id(const srun_handle handle) {
   char *url = strdup(handle->auth_server);
   while (1) {
     char *location = request_get_location(url);
+
+    if (location) {
+      char *new_url = url_concat(url, location);
+      free(location);
+      location = new_url;
+    }
     free(url);
 
     if (!location) {
@@ -401,7 +521,7 @@ nomem_free_chall:
   hmac_md5_digest((const uint8_t *)handle->password, strlen(handle->password), (const uint8_t *)chall.token, token_len,
                   hmac_md5_buf);
   for (unsigned int i = 0; i < 16; i++) {
-    sprintf(&hmac_md5_hex[2 * i], "%02hhx", hmac_md5_buf[i]);
+    snprintf(&hmac_md5_hex[2 * i], 3, "%02hhx", hmac_md5_buf[i]);
   }
 
   // 4.2. info field
@@ -410,7 +530,7 @@ nomem_free_chall:
 
   // 4.3. x_encode the info field
   const size_t xenc_info_len = ((info_str_len + 3) / 4 + 1) * 4;
-  uint8_t *xenc_info = malloc(xenc_info_len);
+  uint8_t *xenc_info = (uint8_t *)malloc(xenc_info_len);
   if (!xenc_info) {
     free(info_str);
     goto nomem_free_chall;
@@ -420,7 +540,7 @@ nomem_free_chall:
 
   // 4.4. Base64 encode the xenc_info
   const size_t b64enc_info_len = ((xenc_info_len + 2) / 3) * 4;
-  char *const b64enc_info = malloc(8 + b64enc_info_len); // "{SRBX1}" + '\0'
+  char *const b64enc_info = (char *)malloc(8 + b64enc_info_len); // "{SRBX1}" + '\0'
   if (!b64enc_info) {
     free(xenc_info);
     goto nomem_free_chall;
@@ -450,7 +570,7 @@ nomem_free_chall:
   sha1_digest((const uint8_t *)sha1_msg, strlen(sha1_msg), sha1_buf);
   free(sha1_msg);
   for (unsigned int i = 0; i < sizeof sha1_buf; i++) {
-    sprintf(&sha1_hex[2 * i], "%02hhx", sha1_buf[i]);
+    snprintf(&sha1_hex[2 * i], 3, "%02hhx", sha1_buf[i]);
   }
 
   // 5. construct portal request URL
