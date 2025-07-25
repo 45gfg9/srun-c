@@ -64,16 +64,14 @@ int parse_portal_response(struct portal_response *response, const char *json) {
   }
 
   struct portal_response r;
-  r.error = strdup(error->valuestring);
-  r.error_msg = strdup(error_msg->valuestring);
   if (cJSON_IsString(ecode)) {
     r.ecode = strdup(ecode->valuestring);
-  } else {
-    if (asprintf(&r.ecode, "%d", ecode->valueint) == -1) {
-      // some error occurred
-      r.ecode = NULL;
-    }
+  } else if (asprintf(&r.ecode, "%d", ecode->valueint) == -1) {
+    // some error occurred
+    r.ecode = NULL;
   }
+  r.error = strdup(error->valuestring);
+  r.error_msg = strdup(error_msg->valuestring);
 
   cJSON_Delete(root);
 

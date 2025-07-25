@@ -66,19 +66,25 @@ int parse_portal_response(struct portal_response *response, const char *json) {
     return -1;
   }
 
-  const char *ecode = doc["ecode"];
-  const char *error_msg = doc["error_msg"];
-  const char *error_str = doc["error"];
+  JsonVariant ecode = doc["ecode"];
+  JsonVariant error_msg = doc["error_msg"];
+  JsonVariant error_str = doc["error"];
 
-  if (!ecode || !error_msg || !error_str) {
+  if (!(ecode.is<int>() || ecode.is<const char *>()) || !error_msg.is<const char *>()
+      || !error_str.is<const char *>()) {
     errno = EINVAL; // Missing or invalid fields
     return -1;
   }
 
   struct portal_response r;
-  r.ecode = strdup(ecode);
-  r.error = strdup(error_str);
-  r.error_msg = strdup(error_msg);
+  if (ecode.is<const char *>()) {
+    r.ecode = strdup(ecode.as<const char *>());
+  } else if (asprintf(&r.ecode, "%d", ecode.as<int>()) == -1) {
+    // some error occurred
+    r.ecode = NULL;
+  }
+  r.error = strdup(error_str.as<const char *>());
+  r.error_msg = strdup(error_msg.as<const char *>());
 
   if (!r.ecode || !r.error || !r.error_msg) {
     free_portal_response(&r);
