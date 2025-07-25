@@ -156,7 +156,8 @@ static char *read_cert_file(const char *path) {
     fclose(f);
     return NULL;
   }
-  fread(cli_args.cert_pem, 1, file_size, f);
+  size_t bytes_read = fread(cli_args.cert_pem, 1, file_size, f);
+  cli_args.cert_pem[bytes_read] = '\0';
   fclose(f);
 
   char *cert_begin = strstr(cli_args.cert_pem, "-----BEGIN CERTIFICATE-----");
