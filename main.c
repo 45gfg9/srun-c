@@ -373,9 +373,9 @@ help_guide:
   if (cli_args.client_ip) {
     srun_setopt(handle, SRUNOPT_CLIENT_IP, cli_args.client_ip);
   }
-  // if (cli_args.cert_pem) {
-  //   srun_setopt(handle, SRUNOPT_SERVER_CERT, cli_args.cert_pem);
-  // }
+  if (cli_args.cert_pem) {
+    srun_setopt(handle, SRUNOPT_SERVER_CERT, cli_args.cert_pem);
+  }
   srun_setopt(handle, SRUNOPT_VERBOSITY, cli_args.verbosity);
 
   if (action == ACTION_LOGIN) {

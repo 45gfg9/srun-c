@@ -46,6 +46,7 @@ struct srun_context {
   char *client_ip;
   char *auth_server;
 
+  const char *cert_pem;
   int ac_id;
 
   enum srun_verbosity verbosity;
@@ -82,20 +83,22 @@ static inline void free_portal_response(struct portal_response *resp) {
 /**
  * Sends a GET request to the specified URL and retrieves the response body.
  *
+ * @param handle The srun handle.
  * @param url The URL to send the request to.
  * @returns The response body, or NULL and errno is set.
  * The returned string must be freed by the caller.
  */
-char *request_get_body(const char *url);
+char *request_get_body(const srun_handle handle, const char *url);
 
 /**
  * Sends a GET request to the specified URL and retrieves the Location header.
  *
+ * @param handle The srun handle.
  * @param url The URL to send the request to.
  * @returns The value of the Location header, or NULL if the header is not
  * present or an error occurs. The returned string must be freed by the caller.
  */
-char *request_get_location(const char *url);
+char *request_get_location(const srun_handle handle, const char *url);
 
 /**
  * Parses the JSON response from the challenge request.

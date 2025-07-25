@@ -371,6 +371,9 @@ void srun_setopt(srun_handle handle, srun_option option, ...) {
     case SRUNOPT_AC_ID:
       handle->ac_id = va_arg(args, int);
       break;
+    case SRUNOPT_SERVER_CERT:
+      handle->cert_pem = va_arg(args, const char *);
+      break;
     case SRUNOPT_CLIENT_IP:
       free(handle->client_ip);
       handle->client_ip = strdup(va_arg(args, const char *));
@@ -403,7 +406,7 @@ static int json_strip_callback(char *buf) {
 static int get_ac_id(const srun_handle handle) {
   char *url = strdup(handle->auth_server);
   while (1) {
-    char *location = request_get_location(url);
+    char *location = request_get_location(handle, url);
 
     if (location) {
       char *new_url = url_concat(url, location);
@@ -443,7 +446,7 @@ static int get_challenge(struct chall_response *chall, const srun_handle handle,
     return SRUNE_SYSTEM;
   }
   srun_log_debug(handle->verbosity, "Challenge URL: %s\n", chall_url);
-  char *resp_buf = request_get_body(chall_url);
+  char *resp_buf = request_get_body(handle, chall_url);
   free(chall_url);
 
   if (!resp_buf) {
@@ -463,7 +466,7 @@ static int get_challenge(struct chall_response *chall, const srun_handle handle,
 
 static int get_portal(struct portal_response *chall, const srun_handle handle, const char *url) {
   srun_log_debug(handle->verbosity, "Portal URL: %s\n", url);
-  char *resp_buf = request_get_body(url);
+  char *resp_buf = request_get_body(handle, url);
 
   if (!resp_buf) {
     fprintf(stderr, "Failed to get portal response\n");

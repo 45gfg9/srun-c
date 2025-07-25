@@ -61,12 +61,13 @@ typedef enum srun_option {
   SRUNOPT_AC_ID,
 
   /**
-   * Server certificate. PEM format. This field is NOT copied.
-   * Required if the server uses HTTPS.
+   * Server certificate. PEM format. This field is NOT copied
+   * and must be valid until the handle is cleaned up.
+   * Required if the server uses HTTPS and untrusted certificate.
    * On ESP32, see also SRUNOPT_USE_ESP_CRT_BUNDLE.
    * Type: const char *
    */
-  // SRUNOPT_SERVER_CERT,
+  SRUNOPT_SERVER_CERT,
 
   /**
    * Set to 1 to use ESP x509 certificate bundle.
