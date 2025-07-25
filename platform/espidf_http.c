@@ -4,17 +4,19 @@
  * as published by Sam Hocevar. See the LICENSE file for more details.
  */
 
- #include "compat.h"
+#include "compat.h"
 
 #include <string.h>
 #include <stdlib.h>
 #include <esp_http_client.h>
 
-char *request_get_body(const char *url) {
+char *request_get_body(const srun_handle handle, const char *url) {
   char *response = NULL;
   esp_http_client_config_t config = {
       .url = url,
       .method = HTTP_METHOD_GET,
+      .cert_pem = handle->cert_pem,
+      .cert_len = 0, // auto detect
   };
 
   esp_http_client_handle_t client = esp_http_client_init(&config);
@@ -38,11 +40,13 @@ char *request_get_body(const char *url) {
   return response;
 }
 
-char *request_get_location(const char *url) {
+char *request_get_location(const srun_handle handle, const char *url) {
   char *response = NULL;
   esp_http_client_config_t config = {
       .url = url,
       .method = HTTP_METHOD_GET,
+      .cert_pem = handle->cert_pem,
+      .cert_len = 0, // auto detect
       .disable_auto_redirect = true,
   };
 
