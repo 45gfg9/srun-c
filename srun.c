@@ -141,8 +141,8 @@ static size_t x_encode(const uint8_t *src, size_t src_len, const uint8_t *key, s
  * @param dst_len The length of the destination buffer.
  * @returns The number of bytes written to the destination buffer, including the trailing '\0'.
  */
-static size_t b64_encode(const char alpha[SRUN_PARAM_STATIC 64], char pad_char, const uint8_t *src, size_t src_len,
-                         char *dst, size_t dst_len) {
+static size_t b64_encode(const char alpha[64], char pad_char, const uint8_t *src, size_t src_len, char *dst,
+                         size_t dst_len) {
   // check if the destination buffer is large enough
   size_t ret_len = ((src_len + 2) / 3) * 4 + 1;
   if (dst_len < ret_len) {

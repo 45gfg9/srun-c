@@ -32,7 +32,7 @@ extern "C" {
 #ifndef srun_log
 #define srun_log(target_lvl, handle_lvl, ...) \
   do {                                        \
-    if (handle_lvl >= target_lvl) {           \
+    if ((handle_lvl) >= (target_lvl)) {       \
       fprintf(stderr, __VA_ARGS__);           \
     }                                         \
   } while (0)
