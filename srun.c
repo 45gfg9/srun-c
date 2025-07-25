@@ -416,6 +416,7 @@ static int get_ac_id(const srun_handle handle) {
       fprintf(stderr, "Failed to guess ac_id. Login is very likely to fail.\n");
       return SRUN_AC_ID_UNKNOWN;
     }
+    srun_log_debug(handle->verbosity, "Location: %s\n", location);
 
     char *query = strchr(location, '?');
     if (query) {
@@ -430,7 +431,6 @@ static int get_ac_id(const srun_handle handle) {
     }
 
     url = location;
-    srun_log_debug(handle->verbosity, "Next URL to try: %s\n", url);
   }
 }
 
