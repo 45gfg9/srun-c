@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
 #include <curl/curl.h>
 
 struct curl_string {
@@ -55,7 +56,36 @@ static size_t curl_null_writefunc(char *ptr, size_t size, size_t nmemb, void *us
   return size * nmemb;
 }
 
-char *request_get_body(const char *url) {
+static char *write_cert_to_tempfile(const char *cert_pem) {
+  const char *tmpdir = getenv("TMPDIR");
+  if (!tmpdir) {
+    tmpdir = "/tmp";
+  }
+
+  char *template;
+  if (asprintf(&template, "%s/certXXXXXX", tmpdir) == -1) {
+    return NULL;
+  }
+
+  int fd = mkstemp(template);
+  if (fd == -1) {
+    free(template);
+    return NULL;
+  }
+
+  ssize_t written = write(fd, cert_pem, strlen(cert_pem));
+  close(fd);
+
+  if (written != (ssize_t)strlen(cert_pem)) {
+    unlink(template);
+    free(template);
+    return NULL;
+  }
+
+  return template; // Caller must unlink() and free()
+}
+
+char *request_get_body(const srun_handle handle, const char *url) {
   CURL *curl_handle = curl_easy_init();
   if (!curl_handle) {
     // https://curl.se/libcurl/c/curl_easy_init.html
@@ -71,20 +101,41 @@ char *request_get_body(const char *url) {
   curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_ptr_writefunc);
   curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, &resp_string);
 
+  if (handle->verbosity >= SRUN_VERBOSITY_DEBUG) {
+    curl_easy_setopt(curl_handle, CURLOPT_VERBOSE, 1L);
+  }
+
+  char *cert_path = NULL;
+  if (handle->cert_pem) {
+    cert_path = write_cert_to_tempfile(handle->cert_pem);
+    if (!cert_path) {
+      curl_easy_cleanup(curl_handle);
+      errno = EINVAL;
+      return NULL;
+    }
+    srun_log_debug(handle->verbosity, "Certificate written to %s\n", cert_path);
+    curl_easy_setopt(curl_handle, CURLOPT_CAINFO, cert_path);
+  }
+
   CURLcode res = curl_easy_perform(curl_handle);
   curl_easy_cleanup(curl_handle);
+
+  if (cert_path) {
+    unlink(cert_path);
+    free(cert_path);
+  }
+
   if (res != CURLE_OK) {
     fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-    errno = EIO; // I/O error
-
     free(resp_string.ptr);
+    errno = EIO; // I/O error
     return NULL;
   }
 
   return resp_string.ptr;
 }
 
-char *request_get_location(const char *url) {
+char *request_get_location(const srun_handle handle, const char *url) {
   CURL *curl_handle = curl_easy_init();
   if (!curl_handle) {
     errno = EAGAIN; // resource temporarily unavailable
@@ -95,20 +146,41 @@ char *request_get_location(const char *url) {
   curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_null_writefunc);
   curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, NULL);
 
-  CURLcode res = curl_easy_perform(curl_handle);
-  if (res != CURLE_OK) {
-    fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-    curl_easy_cleanup(curl_handle);
-    return NULL;
+  if (handle->verbosity >= SRUN_VERBOSITY_DEBUG) {
+    curl_easy_setopt(curl_handle, CURLOPT_VERBOSE, 1L);
+  }
+
+  char *cert_path = NULL;
+  if (handle->cert_pem) {
+    cert_path = write_cert_to_tempfile(handle->cert_pem);
+    if (!cert_path) {
+      curl_easy_cleanup(curl_handle);
+      errno = EIO;
+      return NULL;
+    }
+    srun_log_debug(handle->verbosity, "Certificate written to %s\n", cert_path);
+    curl_easy_setopt(curl_handle, CURLOPT_CAINFO, cert_path);
   }
 
   char *location = NULL;
-  res = curl_easy_getinfo(curl_handle, CURLINFO_REDIRECT_URL, &location);
-  if (res == CURLE_OK && location) {
-    location = strdup(location);
-  } else if (res != CURLE_OK) {
-    fprintf(stderr, "curl_easy_getinfo() failed: %s\n", curl_easy_strerror(res));
+  CURLcode res = curl_easy_perform(curl_handle);
+  if (res == CURLE_OK) {
+    res = curl_easy_getinfo(curl_handle, CURLINFO_REDIRECT_URL, &location);
+    if (res == CURLE_OK) {
+      if (location && location[0]) {
+        location = strdup(location);
+      }
+    } else {
+      fprintf(stderr, "curl_easy_getinfo() failed: %s\n", curl_easy_strerror(res));
+    }
+  } else {
+    fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
   }
+
   curl_easy_cleanup(curl_handle);
+  if (cert_path) {
+    unlink(cert_path);
+    free(cert_path);
+  }
   return location;
 }
