@@ -355,7 +355,7 @@ help_guide:
     goto exit_cleanup;
   }
 
-  if (!cli_args.auth_server || !cli_args.auth_server[0]) {
+  if (!(cli_args.auth_server && cli_args.auth_server[0])) {
     fprintf(stderr, "Missing fields for %s.\n", action_str);
     goto help_guide;
   }
@@ -364,16 +364,16 @@ help_guide:
 
   srun_setopt(handle, SRUNOPT_AUTH_SERVER, cli_args.auth_server);
   srun_setopt(handle, SRUNOPT_AC_ID, cli_args.ac_id);
-  if (cli_args.username) {
+  if (cli_args.username && cli_args.username[0]) {
     srun_setopt(handle, SRUNOPT_USERNAME, cli_args.username);
   }
-  if (cli_args.password) {
+  if (cli_args.password && cli_args.password[0]) {
     srun_setopt(handle, SRUNOPT_PASSWORD, cli_args.password);
   }
-  if (cli_args.client_ip) {
+  if (cli_args.client_ip && cli_args.client_ip[0]) {
     srun_setopt(handle, SRUNOPT_CLIENT_IP, cli_args.client_ip);
   }
-  if (cli_args.cert_pem) {
+  if (cli_args.cert_pem && cli_args.cert_pem[0]) {
     srun_setopt(handle, SRUNOPT_SERVER_CERT, cli_args.cert_pem);
   }
   srun_setopt(handle, SRUNOPT_VERBOSITY, cli_args.verbosity);

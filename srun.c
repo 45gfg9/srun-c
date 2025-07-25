@@ -610,10 +610,10 @@ nomem_free_chall:
   }
 
   fprintf(stderr, "%s", resp.error);
-  if (resp.ecode[0] != '\0') {
+  if (resp.ecode[0]) {
     fprintf(stderr, " (%s)", resp.ecode);
   }
-  if (resp.error_msg[0] != '\0') {
+  if (resp.error_msg[0]) {
     fprintf(stderr, ": %s", resp.error_msg);
   }
   fprintf(stderr, "\n");
@@ -665,10 +665,10 @@ int srun_logout(srun_handle handle) {
   }
 
   fprintf(stderr, "%s", resp.error);
-  if (resp.ecode[0] != '\0') {
+  if (resp.ecode[0]) {
     fprintf(stderr, " (%s)", resp.ecode);
   }
-  if (resp.error_msg[0] != '\0') {
+  if (resp.error_msg[0]) {
     fprintf(stderr, ": %s", resp.error_msg);
   }
   fprintf(stderr, "\n");
