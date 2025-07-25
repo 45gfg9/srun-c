@@ -65,20 +65,17 @@ struct portal_response {
 static inline void free_chall_response(struct chall_response *resp) {
   if (resp) {
     free(resp->token);
-    resp->token = NULL;
     free(resp->client_ip);
-    resp->client_ip = NULL;
+    *resp = (struct chall_response) {};
   }
 }
 
 static inline void free_portal_response(struct portal_response *resp) {
   if (resp) {
     free(resp->ecode);
-    resp->ecode = NULL;
     free(resp->error);
-    resp->error = NULL;
     free(resp->error_msg);
-    resp->error_msg = NULL;
+    *resp = (struct portal_response) {};
   }
 }
 
@@ -131,7 +128,7 @@ int parse_portal_response(struct portal_response *response, const char *json);
  * @returns A newly allocated string containing the info field, or NULL and errno is set.
  * The caller is responsible for freeing the returned string.
  */
-char *create_info_field(srun_handle handle);
+char *create_info_field(const srun_handle handle);
 
 /**
  * Computes the SHA-1 digest of the given data.

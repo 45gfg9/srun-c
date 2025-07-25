@@ -31,16 +31,18 @@ int parse_chall_response(struct chall_response *response, const char *json) {
     return -1;
   }
 
-  response->token = strdup(challenge->valuestring);
-  response->client_ip = strdup(client_ip->valuestring);
+  struct chall_response r;
+  r.token = strdup(challenge->valuestring);
+  r.client_ip = strdup(client_ip->valuestring);
 
   cJSON_Delete(root);
 
-  if (!response->token || !response->client_ip) {
-    free_chall_response(response);
+  if (!r.token || !r.client_ip) {
+    free_chall_response(&r);
     return -1;
   }
 
+  *response = r;
   return 0;
 }
 
@@ -61,28 +63,30 @@ int parse_portal_response(struct portal_response *response, const char *json) {
     return -1;
   }
 
-  response->error = strdup(error->valuestring);
-  response->error_msg = strdup(error_msg->valuestring);
+  struct portal_response r;
+  r.error = strdup(error->valuestring);
+  r.error_msg = strdup(error_msg->valuestring);
   if (cJSON_IsString(ecode)) {
-    response->ecode = strdup(ecode->valuestring);
+    r.ecode = strdup(ecode->valuestring);
   } else {
-    if (asprintf(&response->ecode, "%d", ecode->valueint) == -1) {
+    if (asprintf(&r.ecode, "%d", ecode->valueint) == -1) {
       // some error occurred
-      response->ecode = NULL;
+      r.ecode = NULL;
     }
   }
 
   cJSON_Delete(root);
 
-  if (!response->error || !response->error_msg || !response->ecode) {
-    free_portal_response(response);
+  if (!r.error || !r.error_msg || !r.ecode) {
+    free_portal_response(&r);
     return -1;
   }
 
+  *response = r;
   return 0;
 }
 
-char *create_info_field(srun_handle handle) {
+char *create_info_field(const srun_handle handle) {
   cJSON *info = cJSON_CreateObject();
   if (!info) {
     errno = ENOMEM;

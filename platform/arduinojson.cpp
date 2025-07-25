@@ -36,13 +36,16 @@ int parse_chall_response(struct chall_response *response, const char *json) {
     return -1;
   }
 
-  response->token = strdup(challenge);
-  response->client_ip = strdup(client_ip);
+  struct chall_response r;
+  r.token = strdup(challenge);
+  r.client_ip = strdup(client_ip);
 
-  if (!response->token || !response->client_ip) {
-    free_chall_response(response);
+  if (!r.token || !r.client_ip) {
+    free_chall_response(&r);
     return -1;
   }
+
+  *response = r;
   return 0;
 }
 
@@ -72,18 +75,21 @@ int parse_portal_response(struct portal_response *response, const char *json) {
     return -1;
   }
 
-  response->ecode = strdup(ecode);
-  response->error = strdup(error_str);
-  response->error_msg = strdup(error_msg);
+  struct portal_response r;
+  r.ecode = strdup(ecode);
+  r.error = strdup(error_str);
+  r.error_msg = strdup(error_msg);
 
-  if (!response->ecode || !response->error || !response->error_msg) {
-    free_portal_response(response);
+  if (!r.ecode || !r.error || !r.error_msg) {
+    free_portal_response(&r);
     return -1;
   }
+
+  *response = r;
   return 0;
 }
 
-char *create_info_field(srun_handle handle) {
+char *create_info_field(const srun_handle handle) {
 #if ARDUINOJSON_VERSION_MAJOR >= 7
   JsonDocument doc;
 #else
