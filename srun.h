@@ -37,10 +37,10 @@ typedef struct srun_context *srun_handle;
 
 typedef enum srun_option {
   /**
-   * Authentication server URL. Required.
+   * Authentication server host. Required.
    * Type: char *
    */
-  SRUNOPT_AUTH_SERVER,
+  SRUNOPT_HOST,
 
   /**
    * Username. Required for login.
@@ -55,23 +55,23 @@ typedef enum srun_option {
   SRUNOPT_PASSWORD,
 
   /**
-   * ac_id. Required for login.
+   * ac_id. Required.
    * Type: int
    */
   SRUNOPT_AC_ID,
 
   /**
-   * Server certificate. PEM format. This field is NOT copied
-   * and must be valid until the handle is cleaned up.
+   * CA cert used to verify server. PEM format. This field is
+   * NOT copied and must be valid until the handle is cleaned up.
    * Required if the server uses HTTPS and untrusted certificate.
    * On ESP32, see also SRUNOPT_USE_ESP_CRT_BUNDLE.
    * Type: const char *
    */
-  SRUNOPT_SERVER_CERT,
+  SRUNOPT_CACERT,
 
   /**
    * Set to 1 to use ESP x509 certificate bundle.
-   * This option is ignored, if SRUNOPT_SERVER_CERT is set.
+   * This option is ignored, if SRUNOPT_CACERT is set.
    * Setting this option on non-ESP platforms will have no effect.
    * Type: int
    */
@@ -82,7 +82,7 @@ typedef enum srun_option {
    * Leave unset to use the default assigned IP.
    * Type: char *
    */
-  SRUNOPT_CLIENT_IP,
+  SRUNOPT_IP,
 
   /**
    * Verbosity level. See enum srun_verbosity.

@@ -102,7 +102,7 @@ char *create_info_field(const srun_handle handle) {
 #endif
   doc["username"] = handle->username;
   doc["password"] = handle->password;
-  doc["ip"] = handle->client_ip;
+  doc["ip"] = handle->ip;
   doc["acid"] = handle->ac_id;
   doc["enc_ver"] = "srun_bx1";
 

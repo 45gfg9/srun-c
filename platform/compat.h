@@ -42,10 +42,10 @@ extern "C" {
 #endif
 
 struct srun_context {
+  char *host;
   char *username;
   char *password;
-  char *client_ip;
-  char *auth_server;
+  char *ip;
 
   const char *cert_pem;
   int ac_id;

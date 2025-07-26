@@ -12,12 +12,12 @@ string(TOLOWER "${SRUN_CRYPTO}" SRUN_CRYPTO)
 
 # uncomment these lines to provide default values
 # WARNING: password is stored in plain-text and can be dumped easily using `strings`
-#set(SRUN_CONF_AUTH_URL "https://example.com")
-#set(SRUN_CONF_DEFAULT_USERNAME "TanikazeAmane")
-#set(SRUN_CONF_DEFAULT_PASSWORD "p4ssw@rd")
-#set(SRUN_CONF_DEFAULT_AC_ID 12)
-#set(SRUN_CONF_DEFAULT_CERTFILE "example-cert.pem")
-#set(SRUN_CONF_DEFAULT_CLIENT_IP "0.0.0.0")
+#set(SRUN_CONF_HOST "https://example.com")
+#set(SRUN_CONF_USERNAME "TanikazeAmane")
+#set(SRUN_CONF_PASSWORD "p4ssw@rd")
+#set(SRUN_CONF_AC_ID 12)
+#set(SRUN_CONF_CACERT "example-cert.pem")
+#set(SRUN_CONF_CLIENT_IP "0.0.0.0")
 
 set(CMAKE_C_STANDARD 11)
 add_executable(${PROJECT_NAME} srun.c main.c)
@@ -49,14 +49,14 @@ endif ()
 string(TIMESTAMP SRUN_BUILD_TIME "%Y-%m-%d %H:%M:%S")
 set(SRUN_VERSION "${CMAKE_PROJECT_VERSION}")
 
-if (SRUN_CONF_DEFAULT_CERTFILE)
-    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/${SRUN_CONF_DEFAULT_CERTFILE}" SRUN_CONF_DEFAULT_CERT)
-    string(REPLACE "\n" "\\n" SRUN_CONF_DEFAULT_CERT "${SRUN_CONF_DEFAULT_CERT}")
+if (SRUN_CONF_CACERT)
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/${SRUN_CONF_CACERT}" SRUN_CONF_CERT_PEM)
+    string(REPLACE "\n" "\\n" SRUN_CONF_CERT_PEM "${SRUN_CONF_CERT_PEM}")
 endif ()
 
-if (NOT SRUN_CONF_DEFAULT_USERNAME AND SRUN_CONF_DEFAULT_PASSWORD)
+if (NOT SRUN_CONF_USERNAME AND SRUN_CONF_PASSWORD)
     message(WARNING "Cannot set password without username")
-    unset(SRUN_CONF_DEFAULT_PASSWORD)
+    unset(SRUN_CONF_PASSWORD)
 endif ()
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/srun_config.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/srun_config.h")

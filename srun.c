@@ -336,7 +336,7 @@ srun_handle srun_create(void) {
     return NULL;
   }
   handle->ac_id = SRUN_AC_ID_UNKNOWN;
-  handle->client_ip = strdup("");
+  handle->ip = strdup("");
   handle->verbosity = SRUN_VERBOSITY_SILENT;
   return handle;
 }
@@ -347,8 +347,8 @@ void srun_cleanup(srun_handle handle) {
   }
   free(handle->username);
   free(handle->password);
-  free(handle->client_ip);
-  free(handle->auth_server);
+  free(handle->ip);
+  free(handle->host);
   free(handle);
 }
 
@@ -363,9 +363,9 @@ void srun_setopt(srun_handle handle, srun_option option, ...) {
 
   // on out of memory, strdup will set errno to ENOMEM
   switch (option) {
-    case SRUNOPT_AUTH_SERVER:
-      free(handle->auth_server);
-      handle->auth_server = strdup(va_arg(args, const char *));
+    case SRUNOPT_HOST:
+      free(handle->host);
+      handle->host = strdup(va_arg(args, const char *));
       break;
     case SRUNOPT_USERNAME:
       free(handle->username);
@@ -378,12 +378,12 @@ void srun_setopt(srun_handle handle, srun_option option, ...) {
     case SRUNOPT_AC_ID:
       handle->ac_id = va_arg(args, int);
       break;
-    case SRUNOPT_SERVER_CERT:
+    case SRUNOPT_CACERT:
       handle->cert_pem = va_arg(args, const char *);
       break;
-    case SRUNOPT_CLIENT_IP:
-      free(handle->client_ip);
-      handle->client_ip = strdup(va_arg(args, const char *));
+    case SRUNOPT_IP:
+      free(handle->ip);
+      handle->ip = strdup(va_arg(args, const char *));
       break;
     case SRUNOPT_VERBOSITY:
       handle->verbosity = (enum srun_verbosity)va_arg(args, int);
@@ -411,7 +411,7 @@ static int json_strip_callback(char *buf) {
 }
 
 static int get_ac_id(const srun_handle handle) {
-  char *url = strdup(handle->auth_server);
+  char *url = strdup(handle->host);
   int redirect_count = 0;
   const int max_redirects = 10; // Prevent infinite redirect loops
 
@@ -457,7 +457,7 @@ static int get_challenge(struct chall_response *chall, const srun_handle handle,
   static const char chall_fmtstr[] = "%s" PATH_GET_CHAL "?callback=jQuery98"
                                      "&username=%s&ip=%s&_=%llu000";
   char *chall_url;
-  if (asprintf(&chall_url, chall_fmtstr, handle->auth_server, handle->username, handle->client_ip, req_time) == -1) {
+  if (asprintf(&chall_url, chall_fmtstr, handle->host, handle->username, handle->ip, req_time) == -1) {
     return SRUNE_SYSTEM;
   }
   srun_log_debug(handle->verbosity, "Challenge URL: %s\n", chall_url);
@@ -499,7 +499,7 @@ static int get_portal(struct portal_response *chall, const srun_handle handle, c
 }
 
 int srun_login(srun_handle handle) {
-  if (!handle->auth_server || !handle->username || !handle->password || handle->auth_server[0] == '\0'
+  if (!handle->host || !handle->username || !handle->password || handle->host[0] == '\0'
       || handle->username[0] == '\0' || handle->password[0] == '\0') {
     return SRUNE_INVALID_CTX;
   }
@@ -520,10 +520,10 @@ int srun_login(srun_handle handle) {
 
   const size_t token_len = strlen(chall.token);
 
-  // 3. if client_ip is not set, use the one from challenge response
-  if (handle->client_ip[0] == '\0') {
-    srun_setopt(handle, SRUNOPT_CLIENT_IP, chall.client_ip);
-    if (!handle->client_ip) {
+  // 3. if ip is not set, use the one from challenge response
+  if (handle->ip[0] == '\0') {
+    srun_setopt(handle, SRUNOPT_IP, chall.client_ip);
+    if (!handle->ip) {
 nomem_free_chall:
       free_chall_response(&chall);
       return SRUNE_SYSTEM;
@@ -575,7 +575,7 @@ nomem_free_chall:
   // TODO: move hardcoded CHALL_N and CHALL_TYPE to CMakeLists.txt
   char *sha1_msg;
   if (asprintf(&sha1_msg, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s", chall.token, handle->username, chall.token, hmac_md5_hex,
-               chall.token, ac_id_str, chall.token, handle->client_ip, chall.token, CHALL_N, chall.token, CHALL_TYPE,
+               chall.token, ac_id_str, chall.token, handle->ip, chall.token, CHALL_N, chall.token, CHALL_TYPE,
                chall.token, b64enc_info)
       == -1) {
     free(b64enc_info);
@@ -602,8 +602,8 @@ nomem_free_chall:
                                       "&username=%s&password=%%7BMD5%%7D%s&ac_id=%d&ip=%s&chksum=%s&info=%s"
                                       "&action=login&os=Linux&name=Linux&double_stack=0";
   char *portal_url;
-  if (asprintf(&portal_url, portal_fmtstr, handle->auth_server, CHALL_N, CHALL_TYPE, req_time, handle->username,
-               hmac_md5_hex, handle->ac_id, handle->client_ip, sha1_hex, url_encoded_info)
+  if (asprintf(&portal_url, portal_fmtstr, handle->host, CHALL_N, CHALL_TYPE, req_time, handle->username,
+               hmac_md5_hex, handle->ac_id, handle->ip, sha1_hex, url_encoded_info)
       == -1) {
     free(url_encoded_info);
     return SRUNE_SYSTEM;
@@ -645,13 +645,13 @@ int srun_logout(srun_handle handle) {
   }
 
   // 2. get client_ip from challenge response if not set, required by logout
-  if (handle->client_ip[0] == '\0') {
+  if (handle->ip[0] == '\0') {
     struct chall_response chall;
     int retval = get_challenge(&chall, handle, req_time);
     if (retval != SRUNE_OK) {
       return retval;
     }
-    srun_setopt(handle, SRUNOPT_CLIENT_IP, chall.client_ip);
+    srun_setopt(handle, SRUNOPT_IP, chall.client_ip);
     free_chall_response(&chall);
   }
 
@@ -659,7 +659,7 @@ int srun_logout(srun_handle handle) {
   static const char logout_fmtstr[] = "%s" PATH_PORTAL "?callback=jQuery98&action=logout"
                                       "&_=%llu000&username=%s&ip=%s&ac_id=%d";
   char *logout_url;
-  if (asprintf(&logout_url, logout_fmtstr, handle->auth_server, req_time, handle->username, handle->client_ip,
+  if (asprintf(&logout_url, logout_fmtstr, handle->host, req_time, handle->username, handle->ip,
                handle->ac_id)
       == -1) {
     return SRUNE_SYSTEM; // memory allocation failed

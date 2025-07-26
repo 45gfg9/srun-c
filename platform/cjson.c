@@ -93,7 +93,7 @@ char *create_info_field(const srun_handle handle) {
 
   cJSON_AddStringToObject(info, "username", handle->username);
   cJSON_AddStringToObject(info, "password", handle->password);
-  cJSON_AddStringToObject(info, "ip", handle->client_ip);
+  cJSON_AddStringToObject(info, "ip", handle->ip);
   cJSON_AddNumberToObject(info, "acid", handle->ac_id);
   cJSON_AddStringToObject(info, "enc_ver", "srun_bx1");
 
