@@ -4,6 +4,8 @@
  * as published by Sam Hocevar. See the LICENSE file for more details.
  */
 
+#if ARDUINO && (ESP_PLATFORM || ESP8266)
+
 #include "compat.h"
 
 // Currently we just reuse ESP32 and ESP8266 code for as much as possible.
@@ -11,7 +13,7 @@
 
 #include <memory>
 
-#if ESP8266
+#ifdef ESP8266
 #include <WiFiClientSecure.h>
 #include <ESP8266HTTPClient.h>
 #else
@@ -21,11 +23,11 @@
 using client_req_func = char *(HTTPClient &client);
 
 static char *request(const srun_handle handle, const char *url, client_req_func *func) {
+  std::unique_ptr<WiFiClient> pclient;
   HTTPClient http;
 
 #if ESP8266
   X509List x509;
-  std::unique_ptr<WiFiClient> pclient;
   if (strncmp(url, "https://", 8) == 0) {
     auto psecure = new WiFiClientSecure;
     pclient.reset(psecure);
@@ -39,10 +41,19 @@ static char *request(const srun_handle handle, const char *url, client_req_func 
   } else {
     pclient.reset(new WiFiClient);
   }
-  http.begin(*pclient, url);
 #else
-  http.begin(url);
+  // TODO: test & esp32_cert_bundle
+  if (strncmp(url, "https://", 8) == 0) {
+    auto psecure = new WiFiClientSecure;
+    pclient.reset(psecure);
+    if (handle->cert_pem && handle->cert_pem[0]) {
+      psecure->setCACert(handle->cert_pem);
+    }
+  } else {
+    pclient.reset(new WiFiClient);
+  }
 #endif
+  http.begin(*pclient, url);
 
   char *response = func(http);
 
@@ -73,3 +84,5 @@ char *request_get_location(const srun_handle handle, const char *url) {
     return nullptr;
   });
 }
+
+#endif
