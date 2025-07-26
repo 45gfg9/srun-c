@@ -217,6 +217,12 @@ static char *url_encode(const char *str) {
  * The caller is responsible for freeing the returned string.
  */
 static char *url_concat(const char *first, const char *second) {
+  // Input validation
+  if (!first || !second) {
+    errno = EINVAL;
+    return NULL;
+  }
+
   // If 'second' is an absolute URL with an http or https scheme, it replaces 'first'.
   if (strncmp(second, "http://", 7) == 0 || strncmp(second, "https://", 8) == 0) {
     return strdup(second);
@@ -224,6 +230,7 @@ static char *url_concat(const char *first, const char *second) {
 
   // If 'first' starts with a slash or is empty, it's an error.
   if (first[0] == '/' || first[0] == '\0') {
+    errno = EINVAL;
     return NULL;
   }
 
@@ -405,7 +412,10 @@ static int json_strip_callback(char *buf) {
 
 static int get_ac_id(const srun_handle handle) {
   char *url = strdup(handle->auth_server);
-  while (1) {
+  int redirect_count = 0;
+  const int max_redirects = 10; // Prevent infinite redirect loops
+
+  while (redirect_count < max_redirects) {
     char *location = request_get_location(handle, url);
 
     if (location) {
@@ -434,7 +444,12 @@ static int get_ac_id(const srun_handle handle) {
     }
 
     url = location;
+    redirect_count++;
   }
+
+  srun_log_error("Too many redirects while trying to guess ac_id.\n");
+  free(url);
+  return SRUN_AC_ID_UNKNOWN;
 }
 
 static int get_challenge(struct chall_response *chall, const srun_handle handle, unsigned long long req_time) {
