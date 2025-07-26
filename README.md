@@ -57,22 +57,22 @@ cmake -B cmake-build -DSRUN_CRYPTO=mbedtls  # or openssl, self
 
 ### Provide Default Values
 
-See `CMakeLists.txt` for the default values of the options at compile time. Settings that have default values can be omitted from the command line. For example, if you set `SRUN_DEFAULT_URL` to your institution's authentication server, you can omit the `-H` option. If `-H` is provided, it will override the default value.
+See `CMakeLists.txt` for the default values of the options at compile time. Settings that have default values can be omitted from the command line. For example, if you set `SRUN_CONF_HOST` to your institution's authentication server hostname, you can omit the `-H` option. If `-H` is provided, it will override the default value.
 
 ## Build for ESP8266 / ESP32 / your own project
 
 Integrating `srun-c` into your own project is a bit more complicated. You need to drop a few files into your project.
 
 1. Copy `srun.c`, `srun.h`, and `platform/compat.h` to your project.
-2. Copy one of `platform/libcurl.c`, `platform/esp_arduino_http.cpp`, or `platform/espidf_http.c` depending on the HTTP library you want to use.
+2. Copy one of `platform/libcurl.c`, `platform/esp_arduino_http.cpp`, or `platform/espidf_http.c` depending on the HTTP library you have / want to use.
    - Use `libcurl.c` for Unix-like systems.
    - Use `esp_arduino_http.cpp` for ESP8266 or ESP32 with Arduino framework.
    - Use `espidf_http.c` for ESP32 with ESP-IDF.
-3. Copy one of `platform/openssl.c`, `platform/mbedtls.c`, or `platform/md.c` depending on the crypto library you want to use.
+3. Copy one of `platform/openssl.c`, `platform/mbedtls.c`, or `platform/md.c` depending on the crypto library you have / want to use.
     - For Unix-like systems, any is fine but you usually want `openssl.c` or `mbedtls.c` as they may utilize hardware acceleration.
     - For ESP32, use `mbedtls.c` as ESP-IDF provides it.
     - For projects without dependencies (like ESP8266), use `md.c`.
-4. Copy one of `platform/cjson.c` or `platform/arduinojson.cpp` depending on the JSON library you want to use.
+4. Copy one of `platform/cjson.c` or `platform/arduinojson.cpp` depending on the JSON library you have / want to use.
     - `cjson.c` requires `cJSON` library (which ESP32 has), while `arduinojson.cpp` is for ArduinoJson library.
 
 Your project structure should look like this (feel free to adjust paths or file names, or just use a flat structure):
@@ -121,11 +121,9 @@ srun_cleanup(handle);
 
 `SRUNOPT_USERNAME` and `SRUNOPT_PASSWORD` are required for login operations, but not for logout operations.
 
-For detailed API usage, refer to the header file `srun.h`. For a more complete example, see `main.c`.
-
-#### `ac_id`
-
 The Srun portal requires `ac_id`, an integer that may vary by institution. You usually can find it in the URL of the login page. If it is not set, `srun-c` will try to guess it from the authentication page, but this may not always work.
+
+For detailed API usage, refer to the header file `srun.h`. For a more complete example, see `main.c`.
 
 #### Caveats for ESP8266
 

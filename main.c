@@ -66,7 +66,7 @@ enum {
 
 static const char *prog_name;
 
-static struct {
+static struct cli_opts {
   char *host;
   char *username;
   char *password;
@@ -76,26 +76,25 @@ static struct {
   int ac_id;
 
   enum srun_verbosity verbosity;
-} cli_args;
+} opts;
 
 static void print_version(void) {
   printf("Version: %s " SRUN_VERSION GIT_HASH_STR ", Built on " SRUN_BUILD_TIME ".\n", prog_name);
 
   puts("Default configurations:");
 
-  printf("  URL: %s\n", cli_args.host ? cli_args.host : "(not set)");
-  printf("  username: %s\n", cli_args.username ? cli_args.username : "(not set)");
+  printf("  URL: %s\n", opts.host ? opts.host : "(not set)");
+  printf("  username: %s\n", opts.username ? opts.username : "(not set)");
 
-  // puts("  password set.");
-  printf("  password: %s\n", cli_args.password ? "(set)" : "(not set)");
-  if (cli_args.ac_id == SRUN_AC_ID_UNKNOWN) {
+  printf("  password: %s\n", opts.password ? "(set)" : "(not set)");
+  if (opts.ac_id == SRUN_AC_ID_UNKNOWN) {
     puts("  ac_id: unknown");
   } else {
-    printf("  ac_id: %d\n", cli_args.ac_id);
+    printf("  ac_id: %d\n", opts.ac_id);
   }
-  printf("  client IP: %s\n", cli_args.ip ? cli_args.ip : "(not set)");
+  printf("  client IP: %s\n", opts.ip ? opts.ip : "(not set)");
 
-  if (cli_args.cert_pem) {
+  if (opts.cert_pem) {
     pid_t openssl_pid = fork();
     if (openssl_pid == -1) {
       perror("fork");
@@ -103,7 +102,7 @@ static void print_version(void) {
       puts("CA certificate info:");
       int pipefd[2];
       pipe(pipefd);
-      write(pipefd[1], cli_args.cert_pem, strlen(cli_args.cert_pem));
+      write(pipefd[1], opts.cert_pem, strlen(opts.cert_pem));
       close(pipefd[1]);
       dup2(pipefd[0], STDIN_FILENO);
       close(pipefd[0]);
@@ -159,39 +158,39 @@ static char *read_cert_file(const char *path) {
     perror(prog_name);
     return NULL;
   }
-  free(cli_args.cert_pem);
+  free(opts.cert_pem);
 
   // read file contents
   fseek(f, 0, SEEK_END);
   size_t file_size = ftell(f);
   rewind(f);
-  cli_args.cert_pem = malloc(file_size + 1);
-  if (!cli_args.cert_pem) {
+  opts.cert_pem = malloc(file_size + 1);
+  if (!opts.cert_pem) {
     perror(prog_name);
     fclose(f);
     return NULL;
   }
-  size_t bytes_read = fread(cli_args.cert_pem, 1, file_size, f);
-  cli_args.cert_pem[bytes_read] = '\0';
+  size_t bytes_read = fread(opts.cert_pem, 1, file_size, f);
+  opts.cert_pem[bytes_read] = '\0';
   fclose(f);
 
-  char *cert_begin = strstr(cli_args.cert_pem, "-----BEGIN CERTIFICATE-----");
+  char *cert_begin = strstr(opts.cert_pem, "-----BEGIN CERTIFICATE-----");
   if (!cert_begin) {
     fprintf(stderr, "Invalid certificate file: %s\n", path);
-    free(cli_args.cert_pem);
-    cli_args.cert_pem = NULL;
+    free(opts.cert_pem);
+    opts.cert_pem = NULL;
     return NULL;
   }
-  if (cert_begin != cli_args.cert_pem) {
+  if (cert_begin != opts.cert_pem) {
     size_t cert_len = strlen(cert_begin);
-    memmove(cli_args.cert_pem, cert_begin, cert_len);
-    cli_args.cert_pem[cert_len] = '\0';
+    memmove(opts.cert_pem, cert_begin, cert_len);
+    opts.cert_pem[cert_len] = '\0';
   }
 
-  return cli_args.cert_pem;
+  return opts.cert_pem;
 }
 
-static void parse_opt(int argc, char *const *argv) {
+static struct cli_opts parse_opt(int argc, char *const *argv) {
   static const struct option LONG_OPTS[] = {
       {"help", no_argument, NULL, 'h'},
       {"host", required_argument, NULL, 'H'},
@@ -207,6 +206,8 @@ static void parse_opt(int argc, char *const *argv) {
   };
   static const char SHORT_OPTS[] = "hH:u:p:a:i:c:qvV";
 
+  struct cli_opts o = opts;
+
   int c;
   while ((c = getopt_long(argc, argv, SHORT_OPTS, LONG_OPTS, NULL)) != -1) {
     switch (c) {
@@ -214,35 +215,35 @@ static void parse_opt(int argc, char *const *argv) {
         print_help();
         exit(EXIT_SUCCESS);
       case 's':
-        free(cli_args.host);
-        cli_args.host = strdup(optarg);
+        free(o.host);
+        o.host = strdup(optarg);
         break;
       case 'u':
-        free(cli_args.username);
-        cli_args.username = strdup(optarg);
+        free(o.username);
+        o.username = strdup(optarg);
         break;
       case 'p':
-        free(cli_args.password);
-        cli_args.password = strdup(optarg);
+        free(o.password);
+        o.password = strdup(optarg);
         break;
       case 'a':
-        cli_args.ac_id = (int)strtol(optarg, NULL, 0);
+        o.ac_id = (int)strtol(optarg, NULL, 0);
         break;
       case 'i':
-        free(cli_args.ip);
-        cli_args.ip = strdup(optarg);
+        free(o.ip);
+        o.ip = strdup(optarg);
         break;
       case 'c':
         read_cert_file(optarg);
         break;
       case 'q':
-        cli_args.verbosity = SRUN_VERBOSITY_SILENT;
+        o.verbosity = SRUN_VERBOSITY_SILENT;
         break;
       case 'v':
-        if (cli_args.verbosity < SRUN_VERBOSITY_VERBOSE) {
-          cli_args.verbosity = SRUN_VERBOSITY_VERBOSE;
+        if (o.verbosity < SRUN_VERBOSITY_VERBOSE) {
+          o.verbosity = SRUN_VERBOSITY_VERBOSE;
         } else {
-          cli_args.verbosity = SRUN_VERBOSITY_DEBUG;
+          o.verbosity = SRUN_VERBOSITY_DEBUG;
         }
         break;
       case 'V':
@@ -253,20 +254,21 @@ static void parse_opt(int argc, char *const *argv) {
         exit(EXIT_FAILURE);
     }
   }
+  return o;
 }
 
 static int perform_login(srun_handle handle) {
-  if (!cli_args.username || cli_args.username[0] == '\0') {
+  if (!opts.username || opts.username[0] == '\0') {
     // can't set password without username
-    free(cli_args.password);
-    cli_args.password = NULL;
+    free(opts.password);
+    opts.password = NULL;
 
     char rpp_buffer[512];
     readpassphrase("Username: ", rpp_buffer, sizeof rpp_buffer, RPP_ECHO_ON);
     srun_setopt(handle, SRUNOPT_USERNAME, rpp_buffer);
   }
 
-  if (!cli_args.password || cli_args.password[0] == '\0') {
+  if (!opts.password || opts.password[0] == '\0') {
     char rpp_buffer[512];
     readpassphrase("Password: ", rpp_buffer, sizeof rpp_buffer, RPP_ECHO_OFF);
     srun_setopt(handle, SRUNOPT_PASSWORD, rpp_buffer);
@@ -285,7 +287,7 @@ static int perform_login(srun_handle handle) {
 }
 
 static int perform_logout(srun_handle handle) {
-  if (!cli_args.username || cli_args.username[0] == '\0') {
+  if (!opts.username || opts.username[0] == '\0') {
     char rpp_buffer[512];
     readpassphrase("Username: ", rpp_buffer, sizeof rpp_buffer, RPP_ECHO_ON);
     srun_setopt(handle, SRUNOPT_USERNAME, rpp_buffer);
@@ -326,32 +328,32 @@ int main(int argc, char **argv) {
   }
 
   // provide default values
-  cli_args.verbosity = SRUN_VERBOSITY_NORMAL;
-  cli_args.ac_id = SRUN_AC_ID_UNKNOWN;
-#ifdef SRUN_CONF_URL
-  cli_args.host = strdup(SRUN_CONF_URL);
+  opts.verbosity = SRUN_VERBOSITY_NORMAL;
+  opts.ac_id = SRUN_AC_ID_UNKNOWN;
+#ifdef SRUN_CONF_HOST
+  opts.host = strdup(SRUN_CONF_HOST);
 #endif
 #ifdef SRUN_CONF_USERNAME
-  cli_args.username = strdup(SRUN_CONF_USERNAME);
+  opts.username = strdup(SRUN_CONF_USERNAME);
 #endif
 #ifdef SRUN_CONF_PASSWORD
-  cli_args.password = strdup(SRUN_CONF_PASSWORD);
+  opts.password = strdup(SRUN_CONF_PASSWORD);
 #endif
 #ifdef SRUN_CONF_IP
-  cli_args.ip = strdup(SRUN_CONF_IP);
+  opts.ip = strdup(SRUN_CONF_IP);
 #endif
 #ifdef SRUN_CONF_CERT_PEM
-  cli_args.cert_pem = strdup(SRUN_CONF_CERT_PEM);
+  opts.cert_pem = strdup(SRUN_CONF_CERT_PEM);
 #endif
 #ifdef SRUN_CONF_AC_ID
-  cli_args.ac_id = SRUN_CONF_AC_ID;
+  opts.ac_id = SRUN_CONF_AC_ID;
 #endif
 
   const char *action_str = argv[1];
 
-  parse_opt(argc, argv);
+  opts = parse_opt(argc, argv);
 
-  if (cli_args.verbosity == SRUN_VERBOSITY_SILENT && freopen("/dev/null", "w", stdout) == NULL) {
+  if (opts.verbosity == SRUN_VERBOSITY_SILENT && freopen("/dev/null", "w", stdout) == NULL) {
     fprintf(stderr, "Failed to redirect stdout to /dev/null: %s\n", strerror(errno));
     goto exit_cleanup;
   }
@@ -370,28 +372,28 @@ help_guide:
     goto exit_cleanup;
   }
 
-  if (!(cli_args.host && cli_args.host[0])) {
+  if (!(opts.host && opts.host[0])) {
     fprintf(stderr, "Missing fields for %s.\n", action_str);
     goto help_guide;
   }
 
   srun_handle handle = srun_create();
 
-  srun_setopt(handle, SRUNOPT_HOST, cli_args.host);
-  srun_setopt(handle, SRUNOPT_AC_ID, cli_args.ac_id);
-  if (cli_args.username && cli_args.username[0]) {
-    srun_setopt(handle, SRUNOPT_USERNAME, cli_args.username);
+  srun_setopt(handle, SRUNOPT_HOST, opts.host);
+  srun_setopt(handle, SRUNOPT_AC_ID, opts.ac_id);
+  if (opts.username && opts.username[0]) {
+    srun_setopt(handle, SRUNOPT_USERNAME, opts.username);
   }
-  if (cli_args.password && cli_args.password[0]) {
-    srun_setopt(handle, SRUNOPT_PASSWORD, cli_args.password);
+  if (opts.password && opts.password[0]) {
+    srun_setopt(handle, SRUNOPT_PASSWORD, opts.password);
   }
-  if (cli_args.ip && cli_args.ip[0]) {
-    srun_setopt(handle, SRUNOPT_IP, cli_args.ip);
+  if (opts.ip && opts.ip[0]) {
+    srun_setopt(handle, SRUNOPT_IP, opts.ip);
   }
-  if (cli_args.cert_pem && cli_args.cert_pem[0]) {
-    srun_setopt(handle, SRUNOPT_CACERT, cli_args.cert_pem);
+  if (opts.cert_pem && opts.cert_pem[0]) {
+    srun_setopt(handle, SRUNOPT_CACERT, opts.cert_pem);
   }
-  srun_setopt(handle, SRUNOPT_VERBOSITY, cli_args.verbosity);
+  srun_setopt(handle, SRUNOPT_VERBOSITY, opts.verbosity);
 
   if (action == ACTION_LOGIN) {
     retval = perform_login(handle) != SRUNE_OK;
@@ -403,12 +405,12 @@ help_guide:
   handle = NULL;
 
 exit_cleanup:
-  free(cli_args.host);
-  free(cli_args.username);
-  free(cli_args.password);
-  free(cli_args.ip);
-  free(cli_args.cert_pem);
-  memset(&cli_args, 0, sizeof cli_args);
+  free(opts.host);
+  free(opts.username);
+  free(opts.password);
+  free(opts.ip);
+  free(opts.cert_pem);
+  memset(&opts, 0, sizeof opts);
 
   return retval;
 }

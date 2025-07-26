@@ -7,7 +7,7 @@
 #ifndef __SRUN_CONFIG_H__
 #define __SRUN_CONFIG_H__
 
-#cmakedefine SRUN_CONF_URL "@SRUN_CONF_URL@"
+#cmakedefine SRUN_CONF_HOST "@SRUN_CONF_HOST@"
 #cmakedefine SRUN_CONF_USERNAME "@SRUN_CONF_USERNAME@"
 #cmakedefine SRUN_CONF_PASSWORD "@SRUN_CONF_PASSWORD@"
 #cmakedefine SRUN_CONF_AC_ID @SRUN_CONF_AC_ID@
