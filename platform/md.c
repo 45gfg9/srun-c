@@ -8,6 +8,8 @@
 // https://openwall.info/wiki/people/solar/software/public-domain-source-code/md5
 // https://github.com/B-Con/crypto-algorithms/blob/master/sha1.c
 
+#include "compat.h"
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
