@@ -71,7 +71,7 @@ Integrating `srun-c` into your own project is a bit more complicated. You need t
 3. Copy one of `platform/openssl.c`, `platform/mbedtls.c`, or `platform/md.c` depending on the crypto library you have / want to use.
     - For Unix-like systems, any is fine but you usually want `openssl.c` or `mbedtls.c` as they may utilize hardware acceleration.
     - For ESP32, use `mbedtls.c` as ESP-IDF provides it.
-    - For projects without dependencies (like ESP8266), use `md.c`.
+    - For projects with minimal dependencies (like ESP8266), use `md.c`.
 4. Copy one of `platform/cjson.c` or `platform/arduinojson.cpp` depending on the JSON library you have / want to use.
     - `cjson.c` requires `cJSON` library (which ESP32 has), while `arduinojson.cpp` is for ArduinoJson library.
 
