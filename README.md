@@ -1,64 +1,142 @@
-# srun-c
+# `srun-c`
 
-Yet another **srun** login utility, but written in C and with ESP32 support.
-
-The main files `srun.h` and `srun.c` can be dropped into an existing project and compile along with it. You may also build an executable directly for your OS.
+Yet another **srun** login utility, but written in C and with ESP8266 / ESP32 support.
 
 ## Build for \*nix
 
-Dependencies:
-- libbsd
-- OpenSSL 3
-- LibcURL
+Users of Linux, macOS, and other Unix-like systems can build a standalone binary using CMake. The following dependencies are required:
+
+- CMake (for building)
+- OpenSSL (or Mbed TLS, see below)
+- libcurl
 - cJSON
+- libbsd (for Linux; optional but **strongly recommended**, see below)
+
+For macOS:
 
 ```sh
-sudo apt install cmake openssl libssl-dev libbsd-dev libcurl4-openssl-dev libcjson-dev
+brew install cmake openssl cjson
+```
+
+For Debian-based Linux distributions:
+
+```sh
+sudo apt install make cmake libssl-dev libcurl4-openssl-dev libcjson-dev libbsd-dev
+```
+
+Build:
+
+```sh
 cmake -B cmake-build -DCMAKE_BUILD_TYPE=RelWithDebInfo  # or Release, at your choice
 cmake --build cmake-build --config RelWithDebInfo
 ```
 
-## Build for ESP32
-
 > [!WARNING]
-> While this library currently works on ESP32, it's not yet fully tested. Currently there are some known memory leaks, and should be used with caution, until this warning is removed.
+> **For Linux users**: `libbsd` provides `readpassphrase()` used to read password from the terminal securely. If it is installed, it will be used automatically. If not, a less secure fallback implementation will be used.
+>
+> macOS or BSD users can ignore this warning as `readpassphrase()` is provided by the system.
 
-The ESP32 version uses Mbed TLS library comes along with ESP-IDF. The source should be able to detect this automatically.
+You can choose the crypto library to use by setting the `SRUN_CRYPTO` variable. Supported values are `openssl`, `mbedtls`, and `self` which uses a self-contained implementation of SHA-1 and HMAC-MD5 (see [`platform/md.c`](platform/md.c)). The default is `openssl`. If neither OpenSSL nor Mbed TLS is found, `self` will be used automatically.
 
-## Example Usage
-
-### Login
-
-```c
-srun_handle handle = srun_create();
-srun_setopt(handle, SRUNOPT_AUTH_SERVER, "auth server URL");
-srun_setopt(handle, SRUNOPT_USERNAME, "username");
-srun_setopt(handle, SRUNOPT_PASSWORD, "password");
-srun_setopt(handle, SRUNOPT_SERVER_CERT, "auth server certificate (PEM format)"); // explained below
-srun_setopt(handle, SRUNOPT_USE_ESP_CRT_BUNDLE, 1); // set to 1 to use ESP x509 certificate bundle
-printf("login result: %d\n", srun_login(handle));
-srun_cleanup(handle);
-handle = NULL;
+```sh
+cmake -B cmake-build -DSRUN_CRYPTO=mbedtls  # or openssl, self
 ```
 
-The server CA certificate needs to be set if your auth server uses HTTPS, and if either:
+### Command Line Usage
 
-- you are running on ESP32, and not using / certificate is not trusted by ESP x509 certificate bundle
-- your auth server uses a self-signed certificate (that is not trusted by your system's global CA store)
-
-For security concerns there is no option to skip certificate verification. Evaluate the risk before modifying the code yourself please.
-
-All fields *except server certificate* is copied into the context. The password field is used as HMAC-MD5 key and the internal buffer is filled with zero before being freed by `srun_cleanup()`.
-
-### Logout
-
-```c
-srun_handle handle = srun_create();
-srun_setopt(handle, SRUNOPT_AUTH_SERVER, "auth server URL");
-srun_setopt(handle, SRUNOPT_SERVER_CERT, "auth server certificate (PEM format)");
-printf("logout result: %d\n", srun_logout(handle));
-srun_cleanup(handle);
-handle = NULL;
+```sh
+# login
+./cmake-build/srun login -H https://auth.my.edu -a 12 -u HarumiEna -p mysupersecretpassword
+# login, ask username and password interactively
+./cmake-build/srun login -H https://auth.my.edu -a 12
+# logout
+./cmake-build/srun logout -H https://auth.my.edu -a 12
+# help
+./cmake-build/srun -h
 ```
 
-Username and password are not needed when logging out. The same context used for login may be reused.
+### Provide Default Values
+
+See `CMakeLists.txt` for the default values of the options at compile time. Settings that have default values can be omitted from the command line. For example, if you set `SRUN_DEFAULT_URL` to your institution's authentication server, you can omit the `-H` option. If `-H` is provided, it will override the default value.
+
+## Build for ESP8266 / ESP32 / your own project
+
+Integrating `srun-c` into your own project is a bit more complicated. You need to drop a few files into your project.
+
+1. Copy `srun.c`, `srun.h`, and `platform/compat.h` to your project.
+2. Copy one of `platform/libcurl.c`, `platform/esp_arduino_http.cpp`, or `platform/espidf_http.c` depending on the HTTP library you want to use.
+   - Use `libcurl.c` for Unix-like systems.
+   - Use `esp_arduino_http.cpp` for ESP8266 or ESP32 with Arduino framework.
+   - Use `espidf_http.c` for ESP32 with ESP-IDF.
+3. Copy one of `platform/openssl.c`, `platform/mbedtls.c`, or `platform/md.c` depending on the crypto library you want to use.
+    - For Unix-like systems, any is fine but you usually want `openssl.c` or `mbedtls.c` as they may utilize hardware acceleration.
+    - For ESP32, use `mbedtls.c` as ESP-IDF provides it.
+    - For projects without dependencies (like ESP8266), use `md.c`.
+4. Copy one of `platform/cjson.c` or `platform/arduinojson.cpp` depending on the JSON library you want to use.
+    - `cjson.c` requires `cJSON` library (which ESP32 has), while `arduinojson.cpp` is for ArduinoJson library.
+
+Your project structure should look like this (feel free to adjust paths or file names, or just use a flat structure):
+
+```
+├── include  # make sure this is in your include path
+│   ├── ArduinoJson.hpp
+│   ├── compat.h
+│   └── srun.h
+└── src
+    ├── arduinojson.cpp
+    ├── esp_arduino_http.cpp
+    ├── mbedtls.c
+    └── srun.c
+```
+
+If you wish to use other libraries, you will need to implement your own compatibility layer. See `platform/compat.h` and existing implementations under `platform/` for a quick understanding of how to do this.
+
+### API Usage
+
+`srun-c` tries to follow a libcurl-style API. Below is a minimal example.
+
+```c
+// login
+srun_handle handle = srun_create();
+srun_setopt(handle, SRUNOPT_HOST, "https://auth.my.edu");
+srun_setopt(handle, SRUNOPT_USERNAME, "HarumiEna");
+srun_setopt(handle, SRUNOPT_PASSWORD, "mysupersecretpassword");
+srun_setopt(handle, SRUNOPT_AC_ID, 12);  // see below
+
+int ret = perform_login(handle);
+if (ret != SRUN_OK) {
+  fprintf(stderr, "Login failed: %d\n", ret);
+}
+
+// logout
+ret = perform_logout(handle);
+if (ret != SRUN_OK) {
+  fprintf(stderr, "Logout failed: %d\n", ret);
+}
+
+srun_cleanup(handle);
+```
+
+`SRUNOPT_HOST` should only contain the hostname and optionally the scheme and port, but not any path. It is required for login and logout operations.
+
+`SRUNOPT_USERNAME` and `SRUNOPT_PASSWORD` are required for login operations, but not for logout operations.
+
+For detailed API usage, refer to the header file `srun.h`. For a more complete example, see `main.c`.
+
+#### `ac_id`
+
+The Srun portal requires `ac_id`, an integer that may vary by institution. You usually can find it in the URL of the login page. If it is not set, `srun-c` will try to guess it from the authentication page, but this may not always work.
+
+#### Caveats for ESP8266
+
+ESP8266 may get slow when handling HTTPS requests due to its limited resources. It also does not support TLS certificate for IP addresses, for example `https://10.1.2.3` even if CA certificate is provided. If you encounter issues, consider using HTTP but be aware that HTTP is insecure and may expose your credentials to eavesdroppers.
+
+## TODO
+
+- [ ] Support for ESP32 cert bundle
+- [ ] Test if `ac_id` is required for logout
+- [ ] Support for `srun-c` as a PlatformIO library
+
+## License
+
+This work is free. You can redistribute it and/or modify it under the terms of the Do What The Fuck You Want To Public License, Version 2, as published by Sam Hocevar. See the LICENSE file for more details.
