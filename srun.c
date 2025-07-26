@@ -439,8 +439,8 @@ static int get_ac_id(const srun_handle handle) {
 
 static int get_challenge(struct chall_response *chall, const srun_handle handle, unsigned long long req_time) {
   // callback parameter serves no purpose
-  const char *const chall_fmtstr = "%s" PATH_GET_CHAL "?callback=jQuery98"
-                                   "&username=%s&ip=%s&_=%llu000";
+  static const char chall_fmtstr[] = "%s" PATH_GET_CHAL "?callback=jQuery98"
+                                     "&username=%s&ip=%s&_=%llu000";
   char *chall_url;
   if (asprintf(&chall_url, chall_fmtstr, handle->auth_server, handle->username, handle->client_ip, req_time) == -1) {
     return SRUNE_SYSTEM;
@@ -583,9 +583,9 @@ nomem_free_chall:
     return SRUNE_SYSTEM;
   }
 
-  const char *const portal_fmtstr = "%s" PATH_PORTAL "?callback=jQuery98&n=%s&type=%s&_=%llu000"
-                                    "&username=%s&password=%%7BMD5%%7D%s&ac_id=%d&ip=%s&chksum=%s&info=%s"
-                                    "&action=login&os=Linux&name=Linux&double_stack=0";
+  static const char portal_fmtstr[] = "%s" PATH_PORTAL "?callback=jQuery98&n=%s&type=%s&_=%llu000"
+                                      "&username=%s&password=%%7BMD5%%7D%s&ac_id=%d&ip=%s&chksum=%s&info=%s"
+                                      "&action=login&os=Linux&name=Linux&double_stack=0";
   char *portal_url;
   if (asprintf(&portal_url, portal_fmtstr, handle->auth_server, CHALL_N, CHALL_TYPE, req_time, handle->username,
                hmac_md5_hex, handle->ac_id, handle->client_ip, sha1_hex, url_encoded_info)
@@ -641,8 +641,8 @@ int srun_logout(srun_handle handle) {
   }
 
   // 3. construct logout request URL
-  const char *const logout_fmtstr = "%s" PATH_PORTAL "?callback=jQuery98&action=logout"
-                                    "&_=%llu000&username=%s&ip=%s&ac_id=%d";
+  static const char logout_fmtstr[] = "%s" PATH_PORTAL "?callback=jQuery98&action=logout"
+                                      "&_=%llu000&username=%s&ip=%s&ac_id=%d";
   char *logout_url;
   if (asprintf(&logout_url, logout_fmtstr, handle->auth_server, req_time, handle->username, handle->client_ip,
                handle->ac_id)

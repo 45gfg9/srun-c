@@ -188,7 +188,7 @@ static void parse_opt(int argc, char *const *argv) {
       {"version", no_argument, NULL, 'V'},
       {},
   };
-  static const char *const SHORT_OPTS = "hs:u:p:a:i:c:qvV";
+  static const char SHORT_OPTS[] = "hs:u:p:a:i:c:qvV";
 
   int c;
   while ((c = getopt_long(argc, argv, SHORT_OPTS, LONG_OPTS, NULL)) != -1) {
