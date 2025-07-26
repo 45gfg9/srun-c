@@ -126,7 +126,7 @@ char *request_get_body(const srun_handle handle, const char *url) {
   }
 
   if (res != CURLE_OK) {
-    fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+    srun_log_error("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
     free(resp_string.ptr);
     errno = EIO; // I/O error
     return NULL;
@@ -171,10 +171,10 @@ char *request_get_location(const srun_handle handle, const char *url) {
         location = strdup(location);
       }
     } else {
-      fprintf(stderr, "curl_easy_getinfo() failed: %s\n", curl_easy_strerror(res));
+      srun_log_error("curl_easy_getinfo() failed: %s\n", curl_easy_strerror(res));
     }
   } else {
-    fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+    srun_log_error("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
   }
 
   curl_easy_cleanup(curl_handle);
