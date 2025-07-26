@@ -4,7 +4,7 @@
  * as published by Sam Hocevar. See the LICENSE file for more details.
  */
 
-#if ARDUINO && (ESP_PLATFORM || ESP8266)
+#if ARDUINO && (ESP_PLATFORM || ESP32 || ESP8266)
 
 #include "compat.h"
 
@@ -13,7 +13,7 @@
 
 #include <memory>
 
-#ifdef ESP8266
+#if ESP8266
 #include <WiFiClientSecure.h>
 #include <ESP8266HTTPClient.h>
 #else

@@ -4,6 +4,8 @@
  * as published by Sam Hocevar. See the LICENSE file for more details.
  */
 
+#if ESP_PLATFORM || ESP32
+
 #include "compat.h"
 
 #include <string.h>
@@ -64,3 +66,5 @@ char *request_get_location(const srun_handle handle, const char *url) {
   esp_http_client_cleanup(client);
   return response;
 }
+
+#endif

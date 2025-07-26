@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if ESP_PLATFORM
+#if ESP_PLATFORM || ESP32
 #include <cJSON.h>
 #else
 #include <cjson/cJSON.h>
