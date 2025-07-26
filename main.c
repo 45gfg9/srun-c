@@ -19,7 +19,7 @@
 
 #if defined __APPLE__
 #include <readpassphrase.h>
-#elif defined(SRUN_LIBBSD) && (SRUN_LIBBSD == 0)
+#elif defined(SRUN_LIBBSD) && !SRUN_LIBBSD
 #warning "libbsd is disabled, readpassphrase will not work"
 #define RPP_ECHO_ON 1
 #define RPP_ECHO_OFF 0
@@ -81,7 +81,6 @@ static void print_version(void) {
 #endif
 #ifdef SRUN_CONF_DEFAULT_CERT
   pid_t openssl_pid = fork();
-
   if (openssl_pid == -1) {
     perror("fork");
   } else if (openssl_pid == 0) {
@@ -100,7 +99,6 @@ static void print_version(void) {
     waitpid(openssl_pid, &status, 0);
     if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
       fprintf(stderr, "openssl exited with status %d\n", status);
-      exit(EXIT_FAILURE);
     }
   }
 #endif
