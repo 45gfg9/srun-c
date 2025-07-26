@@ -7,7 +7,6 @@ cmake_minimum_required(VERSION 3.20)
 project(srun C)
 project(srun VERSION 0.13)
 
-option(SRUN_LIBBSD "Use libbsd" ON)
 set(SRUN_CRYPTO "openssl" CACHE STRING "The crypto library to use")
 string(TOLOWER "${SRUN_CRYPTO}" SRUN_CRYPTO)
 
@@ -64,15 +63,14 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/srun_config.h.in" "${CMAKE_CURRENT_S
 
 # libbsd
 if (NOT (APPLE OR BSD))
-    if (NOT SRUN_LIBBSD OR (NOT DEFINED SRUN_LIBBSD AND DEFINED ENV{SRUN_LIBBSD} AND NOT $ENV{SRUN_LIBBSD}))
-        message(WARNING "libbsd is disabled, readpassphrase will not work")
-        target_compile_definitions(${PROJECT_NAME} PRIVATE SRUN_LIBBSD=0)
-    else ()
-        find_library(LIBBSD_LIB NAMES bsd libbsd REQUIRED)
-        find_path(LIBBSD_INCLUDE_DIRS bsd/readpassphrase.h REQUIRED)
+    find_library(LIBBSD_LIB NAMES bsd libbsd)
+    find_path(LIBBSD_INCLUDE_DIRS bsd/readpassphrase.h)
+    if (LIBBSD_LIB AND LIBBSD_INCLUDE_DIRS)
         message(STATUS "Found libbsd: ${LIBBSD_LIB}")
         target_include_directories(${PROJECT_NAME} PRIVATE ${LIBBSD_INCLUDE_DIRS})
         target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBBSD_LIB})
+    else ()
+        message(WARNING "libbsd not found, will use potentially insecure fallback implementation")
     endif ()
 endif ()
 

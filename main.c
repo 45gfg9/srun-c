@@ -19,24 +19,38 @@
 
 #if defined __APPLE__
 #include <readpassphrase.h>
-#elif defined(SRUN_LIBBSD) && !SRUN_LIBBSD
-#warning "libbsd is disabled, readpassphrase will not work"
+#elif defined(__has_include) && __has_include(<bsd/readpassphrase.h>)
+#include <bsd/readpassphrase.h>
+#else
+#warning "libbsd not found, will use potentially insecure fallback implementation"
 #define RPP_ECHO_ON 1
 #define RPP_ECHO_OFF 0
 static inline char *readpassphrase(const char *prompt, char *buf, size_t bufsiz, int flags) {
-  (void)flags;
   if (!bufsiz) {
     errno = EINVAL;
     return NULL;
   }
 
-  fputs(prompt, stderr);
-  fgets(buf, bufsiz, stdin);
-  buf[strcspn(buf, "\n")] = '\0';
+  buf[0] = '\0';
+  if (flags & RPP_ECHO_ON) {
+    fprintf(stderr, "%s", prompt);
+    fflush(stderr);
+    if (!fgets(buf, bufsiz, stdin)) {
+      return NULL;
+    }
+    buf[strcspn(buf, "\n")] = '\0';
+  } else {
+    char *pass = getpass(prompt);
+    if (!pass) {
+      return NULL;
+    }
+
+    strncpy(buf, pass, bufsiz - 1);
+    buf[bufsiz - 1] = '\0';
+    memset(pass, 0, strlen(pass));
+  }
   return buf;
 }
-#else
-#include <bsd/readpassphrase.h>
 #endif
 
 #ifdef SRUN_GIT_HASH
