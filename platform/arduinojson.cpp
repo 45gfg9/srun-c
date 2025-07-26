@@ -67,11 +67,10 @@ int parse_portal_response(struct portal_response *response, const char *json) {
   }
 
   JsonVariant ecode = doc["ecode"];
-  JsonVariant error_msg = doc["error_msg"];
-  JsonVariant error_str = doc["error"];
+  const char *error_msg = doc["error_msg"];
+  const char *error_str = doc["error"];
 
-  if (!(ecode.is<int>() || ecode.is<const char *>()) || !error_msg.is<const char *>()
-      || !error_str.is<const char *>()) {
+  if (!(ecode.is<int>() || ecode.is<const char *>()) || !error_msg || !error_str) {
     errno = EINVAL; // Missing or invalid fields
     return -1;
   }
@@ -83,8 +82,8 @@ int parse_portal_response(struct portal_response *response, const char *json) {
     // some error occurred
     r.ecode = NULL;
   }
-  r.error = strdup(error_str.as<const char *>());
-  r.error_msg = strdup(error_msg.as<const char *>());
+  r.error = strdup(error_str);
+  r.error_msg = strdup(error_msg);
 
   if (!r.ecode || !r.error || !r.error_msg) {
     free_portal_response(&r);
@@ -99,7 +98,7 @@ char *create_info_field(const srun_handle handle) {
 #if ARDUINOJSON_VERSION_MAJOR >= 7
   JsonDocument doc;
 #else
-  DynamicJsonDocument doc(256);
+  DynamicJsonDocument doc(384);
 #endif
   doc["username"] = handle->username;
   doc["password"] = handle->password;
@@ -108,7 +107,7 @@ char *create_info_field(const srun_handle handle) {
   doc["enc_ver"] = "srun_bx1";
 
   size_t capacity = measureJson(doc) + 1;
-  char *info_str = new char[capacity];
+  char *info_str = (char *)malloc(capacity);
   if (!info_str) {
     return NULL;
   }
