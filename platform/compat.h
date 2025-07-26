@@ -28,11 +28,12 @@
 #ifndef srun_log
 #define srun_log(log_lvl, handle_lvl, ...) \
   do {                                     \
-    if ((handle_lvl) >= (log_lvl)) {       \
+    if ((log_lvl) <= (handle_lvl)) {       \
       fprintf(stderr, __VA_ARGS__);        \
     }                                      \
   } while (0)
 #endif
+#define srun_log_error(...) srun_log(0, 0, __VA_ARGS__)
 #define srun_log_verbose(lvl, ...) srun_log(SRUN_VERBOSITY_VERBOSE, (lvl), __VA_ARGS__)
 #define srun_log_debug(lvl, ...) srun_log(SRUN_VERBOSITY_DEBUG, (lvl), __VA_ARGS__)
 

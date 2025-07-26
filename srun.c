@@ -416,7 +416,7 @@ static int get_ac_id(const srun_handle handle) {
     free(url);
 
     if (!location) {
-      fprintf(stderr, "Failed to guess ac_id. Login is very likely to fail.\n");
+      srun_log_error("Failed to guess ac_id. Login is very likely to fail.\n");
       return SRUN_AC_ID_UNKNOWN;
     }
     srun_log_debug(handle->verbosity, "Location: %s\n", location);
@@ -450,13 +450,13 @@ static int get_challenge(struct chall_response *chall, const srun_handle handle,
   free(chall_url);
 
   if (!resp_buf) {
-    fprintf(stderr, "Failed to get challenge response\n");
+    srun_log_error("Failed to get challenge response\n");
     return SRUNE_NETWORK;
   }
   srun_log_verbose(handle->verbosity, "Challenge response: %s\n", resp_buf);
 
   if (json_strip_callback(resp_buf) != 0 || parse_chall_response(chall, resp_buf) != 0) {
-    fprintf(stderr, "Invalid challenge response: %s\n", resp_buf);
+    srun_log_error("Invalid challenge response: %s\n", resp_buf);
     free(resp_buf);
     return SRUNE_NETWORK;
   }
@@ -469,13 +469,13 @@ static int get_portal(struct portal_response *chall, const srun_handle handle, c
   char *resp_buf = request_get_body(handle, url);
 
   if (!resp_buf) {
-    fprintf(stderr, "Failed to get portal response\n");
+    srun_log_error("Failed to get portal response\n");
     return SRUNE_NETWORK;
   }
   srun_log_verbose(handle->verbosity, "Portal response: %s\n", resp_buf);
 
   if (json_strip_callback(resp_buf) != 0 || parse_portal_response(chall, resp_buf) != 0) {
-    fprintf(stderr, "Invalid portal response: %s\n", resp_buf);
+    srun_log_error("Invalid portal response: %s\n", resp_buf);
     free(resp_buf);
     return SRUNE_NETWORK;
   }
@@ -494,7 +494,7 @@ int srun_login(srun_handle handle) {
     handle->ac_id = get_ac_id(handle);
   }
 
-  const unsigned long long req_time = (unsigned long long)time(NULL);
+  const unsigned long long req_time = time(NULL);
 
   // 2. get challenge response
   struct chall_response chall;
@@ -609,20 +609,20 @@ nomem_free_chall:
     return SRUNE_OK;
   }
 
-  fprintf(stderr, "%s", resp.error);
+  srun_log_error("%s", resp.error);
   if (resp.ecode[0]) {
-    fprintf(stderr, " (%s)", resp.ecode);
+    srun_log_error(" (%s)", resp.ecode);
   }
   if (resp.error_msg[0]) {
-    fprintf(stderr, ": %s", resp.error_msg);
+    srun_log_error(": %s", resp.error_msg);
   }
-  fprintf(stderr, "\n");
+  srun_log_error("\n");
   free_portal_response(&resp);
   return SRUNE_NETWORK;
 }
 
 int srun_logout(srun_handle handle) {
-  const unsigned long long req_time = (unsigned long long)time(NULL);
+  const unsigned long long req_time = time(NULL);
 
   // 1. guess ac_id if not set
   if (handle->ac_id == SRUN_AC_ID_UNKNOWN) {
@@ -664,14 +664,14 @@ int srun_logout(srun_handle handle) {
     return SRUNE_OK;
   }
 
-  fprintf(stderr, "%s", resp.error);
+  srun_log_error("%s", resp.error);
   if (resp.ecode[0]) {
-    fprintf(stderr, " (%s)", resp.ecode);
+    srun_log_error(" (%s)", resp.ecode);
   }
   if (resp.error_msg[0]) {
-    fprintf(stderr, ": %s", resp.error_msg);
+    srun_log_error(": %s", resp.error_msg);
   }
-  fprintf(stderr, "\n");
+  srun_log_error("\n");
   free_portal_response(&resp);
   return SRUNE_NETWORK;
 }
