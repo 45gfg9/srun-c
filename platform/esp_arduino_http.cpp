@@ -9,50 +9,67 @@
 // Currently we just reuse ESP32 and ESP8266 code for as much as possible.
 // If two APIs ever deviate too much, we do separate handling then.
 
+#include <memory>
+
 #if ESP8266
+#include <WiFiClientSecure.h>
 #include <ESP8266HTTPClient.h>
 #else
 #include <HTTPClient.h>
 #endif
 
-char *request_get_body(const char *url) {
-  char *response = nullptr;
+using client_req_func = char *(HTTPClient &client);
+
+static char *request(const srun_handle handle, const char *url, client_req_func *func) {
   HTTPClient http;
 
 #if ESP8266
-  WiFiClient client;
-  http.begin(client, url);
+  X509List x509;
+  std::unique_ptr<WiFiClient> pclient;
+  if (strncmp(url, "https://", 8) == 0) {
+    auto psecure = new WiFiClientSecure;
+    pclient.reset(psecure);
+    if (handle->cert_pem && handle->cert_pem[0]) {
+      // cert MUST be configured for ESP8266 to work
+      // if no cert is provided, the connection will fail
+      // see ESP8266WiFi/src/WiFiClientSecureBearSSL.cpp
+      x509.append(handle->cert_pem);
+      psecure->setTrustAnchors(&x509);
+    }
+  } else {
+    pclient.reset(new WiFiClient);
+  }
+  http.begin(*pclient, url);
 #else
   http.begin(url);
 #endif
 
-  int httpCode = http.GET();
-  if (httpCode > 0) {
-    String payload = http.getString();
-    response = strdup(payload.c_str());
-  }
+  char *response = func(http);
+
   http.end();
   return response;
 }
 
-char *request_get_location(const char *url) {
-  char *response = nullptr;
-  HTTPClient http;
-
-#if ESP8266
-  WiFiClient client;
-  http.begin(client, url);
-#else
-  http.begin(url);
-#endif
-
-  int httpCode = http.GET();
-  if (httpCode >= 300 && httpCode < 400) {
-    String location = http.getLocation();
-    if (!location.isEmpty()) {
-      response = strdup(location.c_str());
+char *request_get_body(const srun_handle handle, const char *url) {
+  return request(handle, url, [](HTTPClient &http) -> char * {
+    int httpCode = http.GET();
+    if (httpCode > 0) {
+      String payload = http.getString();
+      return strdup(payload.c_str());
     }
-  }
-  http.end();
-  return response;
+    return nullptr;
+  });
+}
+
+char *request_get_location(const srun_handle handle, const char *url) {
+  return request(handle, url, [](HTTPClient &http) -> char * {
+    int httpCode = http.GET();
+    if (httpCode >= 300 && httpCode < 400) {
+      String location = http.getLocation();
+      if (!location.isEmpty()) {
+        return strdup(location.c_str());
+      }
+    }
+    return nullptr;
+  });
 }
