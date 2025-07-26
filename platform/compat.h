@@ -7,10 +7,6 @@
 #ifndef __SRUN_PLATFORM_COMPAT_H__
 #define __SRUN_PLATFORM_COMPAT_H__
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // see asprintf(3)
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -30,14 +26,18 @@ extern "C" {
 #include "srun.h"
 
 #ifndef srun_log
-#define srun_log(target_lvl, handle_lvl, ...) \
-  do {                                        \
-    if ((handle_lvl) >= (target_lvl)) {       \
-      fprintf(stderr, __VA_ARGS__);           \
-    }                                         \
+#define srun_log(log_lvl, handle_lvl, ...) \
+  do {                                     \
+    if ((handle_lvl) >= (log_lvl)) {       \
+      fprintf(stderr, __VA_ARGS__);        \
+    }                                      \
   } while (0)
-#define srun_log_verbose(lvl, ...) srun_log(SRUN_VERBOSITY_VERBOSE, lvl, __VA_ARGS__)
-#define srun_log_debug(lvl, ...) srun_log(SRUN_VERBOSITY_DEBUG, lvl, __VA_ARGS__)
+#endif
+#define srun_log_verbose(lvl, ...) srun_log(SRUN_VERBOSITY_VERBOSE, (lvl), __VA_ARGS__)
+#define srun_log_debug(lvl, ...) srun_log(SRUN_VERBOSITY_DEBUG, (lvl), __VA_ARGS__)
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 struct srun_context {
