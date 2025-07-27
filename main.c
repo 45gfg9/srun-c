@@ -14,7 +14,6 @@
 #include <unistd.h>
 #include <libgen.h>
 #include <errno.h>
-#include <signal.h>
 #include <sys/wait.h>
 
 #if defined __APPLE__
@@ -83,40 +82,66 @@ static void print_version(void) {
 
   puts("Default configurations:");
 
-  printf("  URL: %s\n", opts.host ? opts.host : "(not set)");
-  printf("  username: %s\n", opts.username ? opts.username : "(not set)");
+  // printf("  URL: %s\n", opts.host ? opts.host : "(not set)");
+  // printf("  username: %s\n", opts.username ? opts.username : "(not set)");
 
-  printf("  password: %s\n", opts.password ? "(set)" : "(not set)");
-  if (opts.ac_id == SRUN_AC_ID_UNKNOWN) {
-    puts("  ac_id: unknown");
+  // printf("  password: %s\n", opts.password ? "(set)" : "(not set)");
+  // if (opts.ac_id == SRUN_AC_ID_UNKNOWN) {
+  //   puts("  ac_id: unknown");
+  // } else {
+  //   printf("  ac_id: %d\n", opts.ac_id);
+  // }
+  // printf("  client IP: %s\n", opts.ip ? opts.ip : "(not set)");
+
+#ifdef SRUN_CONF_HOST
+  puts("  URL: " SRUN_CONF_HOST);
+#else
+  puts("  URL: (not set)");
+#endif
+#ifdef SRUN_CONF_USERNAME
+  puts("  username: " SRUN_CONF_USERNAME);
+#else
+  puts("  username: (not set)");
+#endif
+#ifdef SRUN_CONF_PASSWORD
+  puts("  password: (set)");
+#else
+  puts("  password: (not set)");
+#endif
+#ifdef SRUN_CONF_IP
+  puts("  client IP: " SRUN_CONF_IP);
+#else
+  puts("  client IP: (not set)");
+#endif
+#ifdef SRUN_CONF_AC_ID
+  printf("  ac_id: %d\n", SRUN_CONF_AC_ID);
+#else
+  puts("  ac_id: (not set)");
+#endif
+#ifdef SRUN_CONF_CERT_PEM
+  pid_t openssl_pid = fork();
+  if (openssl_pid == -1) {
+    perror("fork");
+  } else if (openssl_pid == 0) {
+    int pipefd[2];
+    pipe(pipefd);
+    write(pipefd[1], opts.cert_pem, strlen(opts.cert_pem));
+    close(pipefd[1]);
+    dup2(pipefd[0], STDIN_FILENO);
+    close(pipefd[0]);
+    execlp("openssl", "openssl", "x509", "-noout", "-text", NULL);
+    puts("openssl not found in PATH; skipping certificate info.");
+    exit(EXIT_SUCCESS);
   } else {
-    printf("  ac_id: %d\n", opts.ac_id);
-  }
-  printf("  client IP: %s\n", opts.ip ? opts.ip : "(not set)");
-
-  if (opts.cert_pem) {
-    pid_t openssl_pid = fork();
-    if (openssl_pid == -1) {
-      perror("fork");
-    } else if (openssl_pid == 0) {
-      puts("CA certificate info:");
-      int pipefd[2];
-      pipe(pipefd);
-      write(pipefd[1], opts.cert_pem, strlen(opts.cert_pem));
-      close(pipefd[1]);
-      dup2(pipefd[0], STDIN_FILENO);
-      close(pipefd[0]);
-      execlp("openssl", "openssl", "x509", "-noout", "-subject", "-issuer", "-dates", "-fingerprint", NULL);
-      puts("openssl not found in PATH; skipping certificate info.");
-      exit(EXIT_SUCCESS);
-    } else {
-      int status;
-      waitpid(openssl_pid, &status, 0);
-      if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-        fprintf(stderr, "openssl exited with status %d\n", status);
-      }
+    int status;
+    waitpid(openssl_pid, &status, 0);
+    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+      fprintf(stderr, "openssl exited with status %d\n", status);
     }
   }
+#else
+  puts("CA certificate: (not set)");
+#endif
 }
 
 static void print_help(void) {
@@ -190,7 +215,7 @@ static char *read_cert_file(const char *path) {
   return opts.cert_pem;
 }
 
-static struct cli_opts parse_opt(int argc, char *const *argv) {
+static void parse_opt(int argc, char *const *argv) {
   static const struct option LONG_OPTS[] = {
       {"help", no_argument, NULL, 'h'},
       {"host", required_argument, NULL, 'H'},
@@ -206,8 +231,6 @@ static struct cli_opts parse_opt(int argc, char *const *argv) {
   };
   static const char SHORT_OPTS[] = "hH:u:p:a:i:c:qvV";
 
-  struct cli_opts o = opts;
-
   int c;
   while ((c = getopt_long(argc, argv, SHORT_OPTS, LONG_OPTS, NULL)) != -1) {
     switch (c) {
@@ -215,35 +238,35 @@ static struct cli_opts parse_opt(int argc, char *const *argv) {
         print_help();
         exit(EXIT_SUCCESS);
       case 'H':
-        free(o.host);
-        o.host = strdup(optarg);
+        free(opts.host);
+        opts.host = strdup(optarg);
         break;
       case 'u':
-        free(o.username);
-        o.username = strdup(optarg);
+        free(opts.username);
+        opts.username = strdup(optarg);
         break;
       case 'p':
-        free(o.password);
-        o.password = strdup(optarg);
+        free(opts.password);
+        opts.password = strdup(optarg);
         break;
       case 'a':
-        o.ac_id = (int)strtol(optarg, NULL, 0);
+        opts.ac_id = (int)strtol(optarg, NULL, 0);
         break;
       case 'i':
-        free(o.ip);
-        o.ip = strdup(optarg);
+        free(opts.ip);
+        opts.ip = strdup(optarg);
         break;
       case 'c':
         read_cert_file(optarg);
         break;
       case 'q':
-        o.verbosity = SRUN_VERBOSITY_SILENT;
+        opts.verbosity = SRUN_VERBOSITY_SILENT;
         break;
       case 'v':
-        if (o.verbosity < SRUN_VERBOSITY_VERBOSE) {
-          o.verbosity = SRUN_VERBOSITY_VERBOSE;
+        if (opts.verbosity < SRUN_VERBOSITY_VERBOSE) {
+          opts.verbosity = SRUN_VERBOSITY_VERBOSE;
         } else {
-          o.verbosity = SRUN_VERBOSITY_DEBUG;
+          opts.verbosity = SRUN_VERBOSITY_DEBUG;
         }
         break;
       case 'V':
@@ -254,7 +277,6 @@ static struct cli_opts parse_opt(int argc, char *const *argv) {
         exit(EXIT_FAILURE);
     }
   }
-  return o;
 }
 
 static int perform_login(srun_handle handle) {
@@ -305,23 +327,9 @@ static int perform_logout(srun_handle handle) {
   return result;
 }
 
-static void sigsegv_handler(int signum) {
-  if (errno) {
-    write(STDERR_FILENO, prog_name, strlen(prog_name));
-    write(STDERR_FILENO, ": ", 2);
-    const char *errstr = strerror(errno);
-    write(STDERR_FILENO, errstr, strlen(errstr));
-    write(STDERR_FILENO, "\n", 1);
-  }
-
-  signal(signum, SIG_DFL); // reset the signal handler to default
-  raise(signum);           // re-raise the signal to terminate the program
-}
-
 int main(int argc, char **argv) {
   int retval = EXIT_FAILURE;
   prog_name = basename(argv[0]);
-  signal(SIGSEGV, sigsegv_handler);
 
   if (argc == 1) {
     goto no_action;
@@ -351,7 +359,7 @@ int main(int argc, char **argv) {
 
   const char *action_str = argv[1];
 
-  opts = parse_opt(argc, argv);
+  parse_opt(argc, argv);
 
   if (opts.verbosity == SRUN_VERBOSITY_SILENT && freopen("/dev/null", "w", stdout) == NULL) {
     fprintf(stderr, "Failed to redirect stdout to /dev/null: %s\n", strerror(errno));
