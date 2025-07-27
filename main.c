@@ -82,17 +82,6 @@ static void print_version(void) {
 
   puts("Default configurations:");
 
-  // printf("  URL: %s\n", opts.host ? opts.host : "(not set)");
-  // printf("  username: %s\n", opts.username ? opts.username : "(not set)");
-
-  // printf("  password: %s\n", opts.password ? "(set)" : "(not set)");
-  // if (opts.ac_id == SRUN_AC_ID_UNKNOWN) {
-  //   puts("  ac_id: unknown");
-  // } else {
-  //   printf("  ac_id: %d\n", opts.ac_id);
-  // }
-  // printf("  client IP: %s\n", opts.ip ? opts.ip : "(not set)");
-
 #ifdef SRUN_CONF_HOST
   puts("  URL: " SRUN_CONF_HOST);
 #else
@@ -125,7 +114,7 @@ static void print_version(void) {
   } else if (openssl_pid == 0) {
     int pipefd[2];
     pipe(pipefd);
-    write(pipefd[1], opts.cert_pem, strlen(opts.cert_pem));
+    write(pipefd[1], SRUN_CONF_CERT_PEM, sizeof SRUN_CONF_CERT_PEM - 1);
     close(pipefd[1]);
     dup2(pipefd[0], STDIN_FILENO);
     close(pipefd[0]);
@@ -200,7 +189,12 @@ static char *read_cert_file(const char *path) {
   fclose(f);
 
   char *cert_begin = strstr(opts.cert_pem, "-----BEGIN CERTIFICATE-----");
-  if (!cert_begin) {
+  char *cert_end = NULL;
+  if (cert_begin) {
+    cert_end = strstr(cert_begin, "-----END CERTIFICATE-----");
+  }
+
+  if (!cert_begin || !cert_end) {
     fprintf(stderr, "Invalid certificate file: %s\n", path);
     free(opts.cert_pem);
     opts.cert_pem = NULL;
