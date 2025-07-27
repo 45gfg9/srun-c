@@ -214,7 +214,7 @@ static struct cli_opts parse_opt(int argc, char *const *argv) {
       case 'h':
         print_help();
         exit(EXIT_SUCCESS);
-      case 's':
+      case 'H':
         free(o.host);
         o.host = strdup(optarg);
         break;
