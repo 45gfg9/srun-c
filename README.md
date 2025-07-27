@@ -32,7 +32,7 @@ cmake --build cmake-build --config RelWithDebInfo
 ```
 
 > [!WARNING]
-> **For Linux users**: `libbsd` provides `readpassphrase()` used to read password from the terminal securely. If it is installed, it will be used automatically. If not, a less secure fallback implementation will be used.
+> **For Linux users:** `libbsd` provides `readpassphrase()` used to read password from the terminal securely. If it is installed, it will be used automatically. If not, a less secure fallback implementation will be used.
 >
 > macOS or BSD users can ignore this warning as `readpassphrase()` is provided by the system.
 
@@ -58,6 +58,9 @@ cmake -B cmake-build -DSRUN_CRYPTO=mbedtls  # or openssl, self
 ### Provide Default Values
 
 See `CMakeLists.txt` for the default values of the options at compile time. Settings that have default values can be omitted from the command line. For example, if you set `SRUN_CONF_HOST` to your institution's authentication server hostname, you can omit the `-H` option. If `-H` is provided, it will override the default value.
+
+> [!WARNING]
+> Also be aware that the password is stored in plaintext in the binary and can be dumped using `strings` or similar tools. If this is a concern, consider setting the correct file permissions.
 
 ## Build for ESP8266 / ESP32 / your own project
 
@@ -127,7 +130,10 @@ For detailed API usage, refer to the header file `srun.h`. For a more complete e
 
 #### Caveats for ESP8266
 
-ESP8266 may get slow when handling HTTPS requests due to its limited resources. It also does not support TLS certificate for IP addresses, for example `https://10.1.2.3` even if CA certificate is provided. If you encounter issues, consider using HTTP but be aware that HTTP is insecure and may expose your credentials to eavesdroppers.
+ESP8266 may get slow when handling HTTPS requests due to its limited resources. It also does not support TLS certificate for IP addresses, for example `https://10.1.2.3` even if CA certificate is provided.
+
+> [!WARNING]
+> If you encounter issues, consider using HTTP but be aware that HTTP is insecure. Srun portal uses a XXTEA-variant encryption for the login request, but it is virtually useless; **if someone intercepts a full request, they can decrypt it and get your credentials.** This is left to you as an exercise.
 
 ## TODO
 
