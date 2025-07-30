@@ -68,7 +68,7 @@ static inline void free_chall_response(struct chall_response *resp) {
   if (resp) {
     free(resp->token);
     free(resp->client_ip);
-    *resp = (struct chall_response) {};
+    *resp = (struct chall_response) {0};
   }
 }
 
@@ -77,7 +77,7 @@ static inline void free_portal_response(struct portal_response *resp) {
     free(resp->ecode);
     free(resp->error);
     free(resp->error_msg);
-    *resp = (struct portal_response) {};
+    *resp = (struct portal_response) {0};
   }
 }
 

@@ -59,8 +59,8 @@ cmake -B cmake-build -DSRUN_CRYPTO=mbedtls  # or openssl, self
 
 See `CMakeLists.txt` for the default values of the options at compile time. Settings that have default values can be omitted from the command line. For example, if you set `SRUN_CONF_HOST` to your institution's authentication server hostname, you can omit the `-H` option. If `-H` is provided, it will override the default value.
 
-> [!WARNING]
-> Also be aware that the password is stored in plaintext in the binary and can be dumped using `strings` or similar tools. If this is a concern, consider setting the correct file permissions.
+> [!CAUTION]
+> Also be aware that the password is stored in plaintext in the binary and can be dumped using `strings` or similar tools. If this is a concern, consider setting the correct file permissions, or avoid compiling the password into the binary.
 
 ## Build for ESP8266 / ESP32 / your own project
 
@@ -132,7 +132,7 @@ For detailed API usage, refer to the header file `srun.h`. For a more complete e
 
 ESP8266 may get slow when handling HTTPS requests due to its limited resources. It also does not support TLS certificate for IP addresses, for example `https://10.1.2.3` even if CA certificate is provided.
 
-> [!WARNING]
+> [!CAUTION]
 > If you encounter issues, consider using HTTP but be aware that HTTP is insecure. Srun portal uses a XXTEA-variant encryption for the login request, but it is virtually useless; **if someone intercepts a full request, they can decrypt it and get your credentials.** This is left to you as an exercise.
 
 ## TODO

@@ -245,8 +245,8 @@ static void MD5_Final(uint8_t *result, MD5_CTX *ctx) {
 size_t hmac_md5_digest(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len,
                        uint8_t digest[static 16]) {
   MD5_CTX context;
-  uint8_t k_ipad[64] = {}; /* inner padding - key XORd with ipad */
-  uint8_t k_opad[64] = {}; /* outer padding - key XORd with opad */
+  uint8_t k_ipad[64] = {0}; /* inner padding - key XORd with ipad */
+  uint8_t k_opad[64] = {0}; /* outer padding - key XORd with opad */
   uint8_t tk[16];
   int i;
 

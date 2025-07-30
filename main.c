@@ -221,7 +221,7 @@ static void parse_opt(int argc, char *const *argv) {
       {"quiet", no_argument, NULL, 'q'},
       {"verbose", no_argument, NULL, 'v'},
       {"version", no_argument, NULL, 'V'},
-      {},
+      {0},
   };
   static const char SHORT_OPTS[] = "hH:u:p:a:i:c:qvV";
 
