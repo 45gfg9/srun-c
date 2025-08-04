@@ -411,7 +411,7 @@ static int json_strip_callback(char *buf) {
   }
 }
 
-static int get_ac_id(const srun_handle handle) {
+static int get_ac_id(const_srun_handle handle) {
   char *url = strdup(handle->host);
   int redirect_count = 0;
   const int max_redirects = 10; // Prevent infinite redirect loops
@@ -453,7 +453,7 @@ static int get_ac_id(const srun_handle handle) {
   return SRUN_AC_ID_UNKNOWN;
 }
 
-static int get_challenge(struct chall_response *chall, const srun_handle handle, unsigned long long req_time) {
+static int get_challenge(struct chall_response *chall, const_srun_handle handle, unsigned long long req_time) {
   // callback parameter serves no purpose
   static const char chall_fmtstr[] = "%s" PATH_GET_CHAL "?callback=jQuery98"
                                      "&username=%s&ip=%s&_=%llu000";
@@ -480,7 +480,7 @@ static int get_challenge(struct chall_response *chall, const srun_handle handle,
   return SRUNE_OK;
 }
 
-static int get_portal(struct portal_response *chall, const srun_handle handle, const char *url) {
+static int get_portal(struct portal_response *chall, const_srun_handle handle, const char *url) {
   srun_log_debug(handle->verbosity, "Portal URL: %s\n", url);
   char *resp_buf = request_get_body(handle, url);
 

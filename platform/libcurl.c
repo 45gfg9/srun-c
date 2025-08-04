@@ -85,7 +85,7 @@ static char *write_cert_to_tempfile(const char *cert_pem) {
   return template; // Caller must unlink() and free()
 }
 
-char *request_get_body(const srun_handle handle, const char *url) {
+char *request_get_body(const_srun_handle handle, const char *url) {
   CURL *curl_handle = curl_easy_init();
   if (!curl_handle) {
     // https://curl.se/libcurl/c/curl_easy_init.html
@@ -135,7 +135,7 @@ char *request_get_body(const srun_handle handle, const char *url) {
   return resp_string.ptr;
 }
 
-char *request_get_location(const srun_handle handle, const char *url) {
+char *request_get_location(const_srun_handle handle, const char *url) {
   CURL *curl_handle = curl_easy_init();
   if (!curl_handle) {
     errno = EAGAIN; // resource temporarily unavailable

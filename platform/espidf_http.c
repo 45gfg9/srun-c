@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <esp_http_client.h>
 
-char *request_get_body(const srun_handle handle, const char *url) {
+char *request_get_body(const_srun_handle handle, const char *url) {
   char *response = NULL;
   esp_http_client_config_t config = {
       .url = url,
@@ -42,7 +42,7 @@ char *request_get_body(const srun_handle handle, const char *url) {
   return response;
 }
 
-char *request_get_location(const srun_handle handle, const char *url) {
+char *request_get_location(const_srun_handle handle, const char *url) {
   char *response = NULL;
   esp_http_client_config_t config = {
       .url = url,

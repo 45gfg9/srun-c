@@ -22,7 +22,7 @@
 
 using client_req_func = char *(HTTPClient &client);
 
-static char *request(const srun_handle handle, const char *url, client_req_func *func) {
+static char *request(const_srun_handle handle, const char *url, client_req_func *func) {
   std::unique_ptr<WiFiClient> pclient;
   HTTPClient http;
 
@@ -61,7 +61,7 @@ static char *request(const srun_handle handle, const char *url, client_req_func 
   return response;
 }
 
-char *request_get_body(const srun_handle handle, const char *url) {
+char *request_get_body(const_srun_handle handle, const char *url) {
   return request(handle, url, [](HTTPClient &http) -> char * {
     int httpCode = http.GET();
     if (httpCode > 0) {
@@ -72,7 +72,7 @@ char *request_get_body(const srun_handle handle, const char *url) {
   });
 }
 
-char *request_get_location(const srun_handle handle, const char *url) {
+char *request_get_location(const_srun_handle handle, const char *url) {
   return request(handle, url, [](HTTPClient &http) -> char * {
     int httpCode = http.GET();
     if (httpCode >= 300 && httpCode < 400) {

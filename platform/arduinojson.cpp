@@ -94,7 +94,7 @@ int parse_portal_response(struct portal_response *response, const char *json) {
   return 0;
 }
 
-char *create_info_field(const srun_handle handle) {
+char *create_info_field(const_srun_handle handle) {
 #if ARDUINOJSON_VERSION_MAJOR >= 7
   JsonDocument doc;
 #else

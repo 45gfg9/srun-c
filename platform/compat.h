@@ -52,6 +52,7 @@ struct srun_context {
 
   enum srun_verbosity verbosity;
 };
+typedef const struct srun_context *const_srun_handle;
 
 struct chall_response {
   char *token;
@@ -89,7 +90,7 @@ static inline void free_portal_response(struct portal_response *resp) {
  * @returns The response body, or NULL and errno is set.
  * The returned string must be freed by the caller.
  */
-char *request_get_body(const srun_handle handle, const char *url);
+char *request_get_body(const_srun_handle handle, const char *url);
 
 /**
  * Sends a GET request to the specified URL and retrieves the Location header.
@@ -99,7 +100,7 @@ char *request_get_body(const srun_handle handle, const char *url);
  * @returns The value of the Location header, or NULL if the header is not
  * present or an error occurs. The returned string must be freed by the caller.
  */
-char *request_get_location(const srun_handle handle, const char *url);
+char *request_get_location(const_srun_handle handle, const char *url);
 
 /**
  * Parses the JSON response from the challenge request.
@@ -132,7 +133,7 @@ int parse_portal_response(struct portal_response *response, const char *json);
  * @returns A newly allocated string containing the info field, or NULL and errno is set.
  * The caller is responsible for freeing the returned string.
  */
-char *create_info_field(const srun_handle handle);
+char *create_info_field(const_srun_handle handle);
 
 /**
  * Computes the SHA-1 digest of the given data.
