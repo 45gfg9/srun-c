@@ -3,6 +3,8 @@
 
 srun_config.h
 
+*.dSYM
+
 build
 cmake-build*
 CMakeLists.txt.user
