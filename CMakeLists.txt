@@ -5,7 +5,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 project(srun C)
-project(srun VERSION 0.99.1)
+project(srun VERSION 0.99.2)
 
 set(SRUN_CRYPTO "openssl" CACHE STRING "The crypto library to use")
 string(TOLOWER "${SRUN_CRYPTO}" SRUN_CRYPTO)
