@@ -47,6 +47,8 @@ struct srun_context {
   char *password;
   char *ip;
 
+  const char *interface;
+
   const char *cert_pem;
   int ac_id;
 

@@ -101,6 +101,10 @@ char *request_get_body(const_srun_handle handle, const char *url) {
   curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_ptr_writefunc);
   curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, &resp_string);
 
+  if (handle->interface) {
+    curl_easy_setopt(curl_handle, CURLOPT_INTERFACE, handle->interface);
+  }
+
   if (handle->verbosity >= SRUN_VERBOSITY_DEBUG) {
     curl_easy_setopt(curl_handle, CURLOPT_VERBOSE, 1L);
   }
@@ -145,6 +149,10 @@ char *request_get_location(const_srun_handle handle, const char *url) {
   curl_easy_setopt(curl_handle, CURLOPT_URL, url);
   curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_null_writefunc);
   curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, NULL);
+
+  if (handle->interface) {
+    curl_easy_setopt(curl_handle, CURLOPT_INTERFACE, handle->interface);
+  }
 
   if (handle->verbosity >= SRUN_VERBOSITY_DEBUG) {
     curl_easy_setopt(curl_handle, CURLOPT_VERBOSE, 1L);

@@ -71,8 +71,8 @@ typedef enum srun_option {
 
   /**
    * Set to 1 to use ESP x509 certificate bundle.
-   * This option is ignored, if SRUNOPT_CACERT is set.
-   * Setting this option on non-ESP platforms will have no effect.
+   * Ignored if SRUNOPT_CACERT is set.
+   * Has no effect on non-ESP platforms.
    * Type: int
    */
   // SRUNOPT_USE_ESP_CRT_BUNDLE,
@@ -83,6 +83,14 @@ typedef enum srun_option {
    * Type: char *
    */
   SRUNOPT_IP,
+
+  /**
+   * Network interface. Optional.
+   * Leave unset to use the default interface.
+   * Has no effect on ESP platforms.
+   * Type: const char *
+   */
+  SRUNOPT_INTERFACE,
 
   /**
    * Verbosity level. See enum srun_verbosity.

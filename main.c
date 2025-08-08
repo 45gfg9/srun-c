@@ -65,11 +65,13 @@ enum {
 
 static const char *prog_name;
 
-static struct cli_opts {
+static struct {
   char *host;
   char *username;
   char *password;
   char *ip;
+
+  char *interface;
 
   char *cert_pem;
   int ac_id;
@@ -101,6 +103,11 @@ static void print_version(void) {
   puts("  client IP: " SRUN_CONF_IP);
 #else
   puts("  client IP: (not set)");
+#endif
+#ifdef SRUN_CONF_INTERFACE
+  puts("  interface: " SRUN_CONF_INTERFACE);
+#else
+  puts("  interface: (not set)");
 #endif
 #ifdef SRUN_CONF_AC_ID
   printf("  ac_id: %d\n", SRUN_CONF_AC_ID);
@@ -155,6 +162,8 @@ static void print_help(void) {
   puts("          If not specified, try to guess from the authentication server");
   puts("  -i, --ip=IP");
   puts("          use IP as the client IP");
+  puts("  -I, --interface=INTERFACE");
+  puts("          use INTERFACE as the network interface");
   puts("  -c, --cert-file=FILE");
   puts("          use FILE as the PEM certificate");
   puts("  -q, --quiet");
@@ -217,13 +226,14 @@ static void parse_opt(int argc, char *const *argv) {
       {"password", required_argument, NULL, 'p'},
       {"ac-id", required_argument, NULL, 'a'},
       {"ip", required_argument, NULL, 'i'},
+      {"interface", required_argument, NULL, 'I'},
       {"cert-file", required_argument, NULL, 'c'},
       {"quiet", no_argument, NULL, 'q'},
       {"verbose", no_argument, NULL, 'v'},
       {"version", no_argument, NULL, 'V'},
       {0},
   };
-  static const char SHORT_OPTS[] = "hH:u:p:a:i:c:qvV";
+  static const char SHORT_OPTS[] = "hH:u:p:a:i:I:c:qvV";
 
   int c;
   while ((c = getopt_long(argc, argv, SHORT_OPTS, LONG_OPTS, NULL)) != -1) {
@@ -249,6 +259,10 @@ static void parse_opt(int argc, char *const *argv) {
       case 'i':
         free(opts.ip);
         opts.ip = strdup(optarg);
+        break;
+      case 'I':
+        free(opts.interface);
+        opts.interface = strdup(optarg);
         break;
       case 'c':
         read_cert_file(optarg);
@@ -344,6 +358,9 @@ int main(int argc, char **argv) {
 #ifdef SRUN_CONF_IP
   opts.ip = strdup(SRUN_CONF_IP);
 #endif
+#ifdef SRUN_CONF_INTERFACE
+  opts.interface = strdup(SRUN_CONF_INTERFACE);
+#endif
 #ifdef SRUN_CONF_CERT_PEM
   opts.cert_pem = strdup(SRUN_CONF_CERT_PEM);
 #endif
@@ -392,6 +409,9 @@ help_guide:
   if (opts.ip && opts.ip[0]) {
     srun_setopt(handle, SRUNOPT_IP, opts.ip);
   }
+  if (opts.interface && opts.interface[0]) {
+    srun_setopt(handle, SRUNOPT_INTERFACE, opts.interface);
+  }
   if (opts.cert_pem && opts.cert_pem[0]) {
     srun_setopt(handle, SRUNOPT_CACERT, opts.cert_pem);
   }
@@ -411,6 +431,7 @@ exit_cleanup:
   free(opts.username);
   free(opts.password);
   free(opts.ip);
+  free(opts.interface);
   free(opts.cert_pem);
   memset(&opts, 0, sizeof opts);
 

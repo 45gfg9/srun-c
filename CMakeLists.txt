@@ -18,6 +18,7 @@ string(TOLOWER "${SRUN_CRYPTO}" SRUN_CRYPTO)
 #set(SRUN_CONF_AC_ID 12)
 #set(SRUN_CONF_CACERT "example-cert.pem")
 #set(SRUN_CONF_IP "0.0.0.0")
+#set(SRUN_CONF_INTERFACE "wlan0")
 
 set(CMAKE_C_STANDARD 11)
 add_executable(${PROJECT_NAME} srun.c main.c)

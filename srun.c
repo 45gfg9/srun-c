@@ -380,6 +380,9 @@ void srun_setopt(srun_handle handle, srun_option option, ...) {
     case SRUNOPT_AC_ID:
       handle->ac_id = va_arg(args, int);
       break;
+    case SRUNOPT_INTERFACE:
+      handle->interface = va_arg(args, const char *);
+      break;
     case SRUNOPT_CACERT:
       handle->cert_pem = va_arg(args, const char *);
       break;
