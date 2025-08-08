@@ -105,10 +105,10 @@ char *request_get_location(const_srun_handle handle, const char *url);
 /**
  * Parses the JSON response from the challenge request.
  *
- * @param json The JSON response to parse. It can be freed after use.
  * @param response A struct to hold the parsed challenge information.
  * Members of the struct must be freed by the caller.
  * If an error occurs, the struct is not modified.
+ * @param json The JSON response to parse. It can be freed after use.
  * @returns 0 on success, or -1 and errno is set.
  */
 int parse_chall_response(struct chall_response *response, const char *json);
@@ -116,10 +116,10 @@ int parse_chall_response(struct chall_response *response, const char *json);
 /**
  * Parses the JSON response from the portal request.
  *
- * @param json The JSON response to parse. It can be freed after use.
  * @param response A struct to hold the parsed portal information.
  * Members of the struct must be freed by the caller.
  * If an error occurs, the struct is not modified.
+ * @param json The JSON response to parse. It can be freed after use.
  * @returns 0 on success, or -1 and errno is set.
  */
 int parse_portal_response(struct portal_response *response, const char *json);
@@ -128,12 +128,11 @@ int parse_portal_response(struct portal_response *response, const char *json);
  * Creates the info field for the portal request.
  *
  * @param handle The srun handle.
- * @param challenge The challenge string.
- * @param chall_length The length of the challenge string.
+ * @param enc_ver The enc_ver field from the portal code.
  * @returns A newly allocated string containing the info field, or NULL and errno is set.
  * The caller is responsible for freeing the returned string.
  */
-char *create_info_field(const_srun_handle handle);
+char *create_info_field(const_srun_handle handle, const char *enc_ver);
 
 /**
  * Computes the SHA-1 digest of the given data.

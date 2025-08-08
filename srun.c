@@ -17,6 +17,7 @@
 #define PATH_PORTAL "/cgi-bin/srun_portal"
 #define PATH_USER_INFO "/cgi-bin/rad_user_info"
 
+#define CHALL_ENC_VER "srun_bx1"
 #define CHALL_N "200"
 #define CHALL_TYPE "1"
 
@@ -544,7 +545,7 @@ nomem_free_chall:
   }
 
   // 4.2. info field
-  char *const info_str = create_info_field(handle);
+  char *const info_str = create_info_field(handle, CHALL_ENC_VER);
   const size_t info_str_len = strlen(info_str);
 
   // 4.3. x_encode the info field
@@ -573,7 +574,6 @@ nomem_free_chall:
   char ac_id_str[12];
   snprintf(ac_id_str, sizeof ac_id_str, "%d", handle->ac_id);
 
-  // TODO: move hardcoded CHALL_N and CHALL_TYPE to CMakeLists.txt
   char *sha1_msg;
   int sha1_msg_len = asprintf(&sha1_msg, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s", chall.token, handle->username, chall.token,
                               hmac_md5_hex, chall.token, ac_id_str, chall.token, handle->ip, chall.token, CHALL_N,

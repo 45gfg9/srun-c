@@ -94,7 +94,7 @@ int parse_portal_response(struct portal_response *response, const char *json) {
   return 0;
 }
 
-char *create_info_field(const_srun_handle handle) {
+char *create_info_field(const_srun_handle handle, const char *enc_ver) {
 #if ARDUINOJSON_VERSION_MAJOR >= 7
   JsonDocument doc;
 #else
@@ -104,13 +104,12 @@ char *create_info_field(const_srun_handle handle) {
   doc["password"] = handle->password;
   doc["ip"] = handle->ip;
   doc["acid"] = handle->ac_id;
-  doc["enc_ver"] = "srun_bx1";
+  doc["enc_ver"] = enc_ver;
 
   size_t capacity = measureJson(doc) + 1;
   char *info_str = (char *)malloc(capacity);
-  if (!info_str) {
-    return NULL;
+  if (info_str) {
+    serializeJson(doc, info_str, capacity);
   }
-  serializeJson(doc, info_str, capacity);
   return info_str;
 }

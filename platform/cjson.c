@@ -84,7 +84,7 @@ int parse_portal_response(struct portal_response *response, const char *json) {
   return 0;
 }
 
-char *create_info_field(const_srun_handle handle) {
+char *create_info_field(const_srun_handle handle, const char *enc_ver) {
   cJSON *info = cJSON_CreateObject();
   if (!info) {
     errno = ENOMEM;
@@ -95,7 +95,7 @@ char *create_info_field(const_srun_handle handle) {
   cJSON_AddStringToObject(info, "password", handle->password);
   cJSON_AddStringToObject(info, "ip", handle->ip);
   cJSON_AddNumberToObject(info, "acid", handle->ac_id);
-  cJSON_AddStringToObject(info, "enc_ver", "srun_bx1");
+  cJSON_AddStringToObject(info, "enc_ver", enc_ver);
 
   char *info_str = cJSON_PrintUnformatted(info);
   cJSON_Delete(info);
