@@ -250,6 +250,9 @@ static void parse_opt(int argc, char *const *argv) {
         opts.username = strdup(optarg);
         break;
       case 'p':
+        if (opts.password) {
+          memset(opts.password, 0, strlen(opts.password));
+        }
         free(opts.password);
         opts.password = strdup(optarg);
         break;
@@ -427,6 +430,10 @@ help_guide:
   handle = NULL;
 
 exit_cleanup:
+  if (opts.password) {
+    memset(opts.password, 0, strlen(opts.password));
+  }
+
   free(opts.host);
   free(opts.username);
   free(opts.password);
