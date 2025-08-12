@@ -10,16 +10,6 @@ project(srun VERSION 0.99.2)
 set(SRUN_CRYPTO "openssl" CACHE STRING "The crypto library to use")
 string(TOLOWER "${SRUN_CRYPTO}" SRUN_CRYPTO)
 
-# uncomment these lines to provide default values
-# WARNING: password is stored in plain-text and can be dumped easily using `strings`
-#set(SRUN_CONF_HOST "https://example.com")
-#set(SRUN_CONF_USERNAME "TanikazeAmane")
-#set(SRUN_CONF_PASSWORD "p4ssw@rd")
-#set(SRUN_CONF_AC_ID 12)
-#set(SRUN_CONF_CACERT "example-cert.pem")
-#set(SRUN_CONF_IP "0.0.0.0")
-#set(SRUN_CONF_INTERFACE "wlan0")
-
 set(CMAKE_C_STANDARD 11)
 add_executable(${PROJECT_NAME} srun.c main.c)
 

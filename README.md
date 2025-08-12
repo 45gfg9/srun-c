@@ -55,13 +55,6 @@ cmake -B cmake-build -DSRUN_CRYPTO=mbedtls  # or openssl, self
 ./cmake-build/srun -h
 ```
 
-### Provide Default Values
-
-See `CMakeLists.txt` for the default values of the options at compile time. Settings that have default values can be omitted from the command line. For example, if you set `SRUN_CONF_HOST` to your institution's authentication server hostname, you can omit the `-H` option. If `-H` is provided, it will override the default value.
-
-> [!CAUTION]
-> Also be aware that the password is stored in plaintext in the binary and can be dumped using `strings` or similar tools. If this is a concern, consider setting the correct file permissions, or avoid compiling the password into the binary.
-
 ## Build for ESP8266 / ESP32 / your own project
 
 Integrating `srun-c` into your own project is a bit more complicated. You need to drop a few files into your project.

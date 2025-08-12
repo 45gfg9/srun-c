@@ -81,63 +81,6 @@ static struct {
 
 static void print_version(void) {
   printf("Version: %s " SRUN_VERSION GIT_HASH_STR ", Built on " SRUN_BUILD_TIME ".\n", prog_name);
-
-  puts("Default configurations:");
-
-#ifdef SRUN_CONF_HOST
-  puts("  URL: " SRUN_CONF_HOST);
-#else
-  puts("  URL: (not set)");
-#endif
-#ifdef SRUN_CONF_USERNAME
-  puts("  username: " SRUN_CONF_USERNAME);
-#else
-  puts("  username: (not set)");
-#endif
-#ifdef SRUN_CONF_PASSWORD
-  puts("  password: (set)");
-#else
-  puts("  password: (not set)");
-#endif
-#ifdef SRUN_CONF_IP
-  puts("  client IP: " SRUN_CONF_IP);
-#else
-  puts("  client IP: (not set)");
-#endif
-#ifdef SRUN_CONF_INTERFACE
-  puts("  interface: " SRUN_CONF_INTERFACE);
-#else
-  puts("  interface: (not set)");
-#endif
-#ifdef SRUN_CONF_AC_ID
-  printf("  ac_id: %d\n", SRUN_CONF_AC_ID);
-#else
-  puts("  ac_id: (not set)");
-#endif
-#ifdef SRUN_CONF_CERT_PEM
-  pid_t openssl_pid = fork();
-  if (openssl_pid == -1) {
-    perror("fork");
-  } else if (openssl_pid == 0) {
-    int pipefd[2];
-    pipe(pipefd);
-    write(pipefd[1], SRUN_CONF_CERT_PEM, sizeof SRUN_CONF_CERT_PEM - 1);
-    close(pipefd[1]);
-    dup2(pipefd[0], STDIN_FILENO);
-    close(pipefd[0]);
-    execlp("openssl", "openssl", "x509", "-noout", "-text", NULL);
-    puts("openssl not found in PATH; skipping certificate info.");
-    exit(EXIT_SUCCESS);
-  } else {
-    int status;
-    waitpid(openssl_pid, &status, 0);
-    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-      fprintf(stderr, "openssl exited with status %d\n", status);
-    }
-  }
-#else
-  puts("CA certificate: (not set)");
-#endif
 }
 
 static void print_help(void) {
@@ -349,27 +292,6 @@ int main(int argc, char **argv) {
   // provide default values
   opts.verbosity = SRUN_VERBOSITY_NORMAL;
   opts.ac_id = SRUN_AC_ID_UNKNOWN;
-#ifdef SRUN_CONF_HOST
-  opts.host = strdup(SRUN_CONF_HOST);
-#endif
-#ifdef SRUN_CONF_USERNAME
-  opts.username = strdup(SRUN_CONF_USERNAME);
-#endif
-#ifdef SRUN_CONF_PASSWORD
-  opts.password = strdup(SRUN_CONF_PASSWORD);
-#endif
-#ifdef SRUN_CONF_IP
-  opts.ip = strdup(SRUN_CONF_IP);
-#endif
-#ifdef SRUN_CONF_INTERFACE
-  opts.interface = strdup(SRUN_CONF_INTERFACE);
-#endif
-#ifdef SRUN_CONF_CERT_PEM
-  opts.cert_pem = strdup(SRUN_CONF_CERT_PEM);
-#endif
-#ifdef SRUN_CONF_AC_ID
-  opts.ac_id = SRUN_CONF_AC_ID;
-#endif
 
   const char *action_str = argv[1];
 
