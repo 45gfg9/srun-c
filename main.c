@@ -80,7 +80,7 @@ static struct {
 } opts;
 
 static void print_version(void) {
-  printf("Version: %s " SRUN_VERSION GIT_HASH_STR ", Built on " SRUN_BUILD_TIME ".\n", prog_name);
+  puts("Version: srun " SRUN_VERSION GIT_HASH_STR ", built on " SRUN_BUILD_TIME);
 }
 
 static void print_help(void) {
