@@ -127,7 +127,7 @@ static void parse_opt(int argc, char *const *argv) {
       {"ac-id", required_argument, NULL, 'a'},
       {"ip", required_argument, NULL, 'i'},
       {"interface", required_argument, NULL, 'I'},
-      {"cert-file", required_argument, NULL, 'c'},
+      {"cacert", required_argument, NULL, 'c'},
       {"quiet", no_argument, NULL, 'q'},
       {"verbose", no_argument, NULL, 'v'},
       {"version", no_argument, NULL, 'V'},
