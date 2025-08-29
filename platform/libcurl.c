@@ -101,8 +101,8 @@ char *request_get_body(const_srun_handle handle, const char *url) {
   curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_ptr_writefunc);
   curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, &resp_string);
 
-  if (handle->interface) {
-    curl_easy_setopt(curl_handle, CURLOPT_INTERFACE, handle->interface);
+  if (handle->if_name) {
+    curl_easy_setopt(curl_handle, CURLOPT_INTERFACE, handle->if_name);
   }
 
   if (handle->verbosity >= SRUN_VERBOSITY_DEBUG) {
@@ -110,8 +110,8 @@ char *request_get_body(const_srun_handle handle, const char *url) {
   }
 
   char *cert_path = NULL;
-  if (handle->cert_pem) {
-    cert_path = write_cert_to_tempfile(handle->cert_pem);
+  if (handle->cacert_pem) {
+    cert_path = write_cert_to_tempfile(handle->cacert_pem);
     if (!cert_path) {
       curl_easy_cleanup(curl_handle);
       errno = EINVAL;
@@ -150,8 +150,8 @@ char *request_get_location(const_srun_handle handle, const char *url) {
   curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_null_writefunc);
   curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, NULL);
 
-  if (handle->interface) {
-    curl_easy_setopt(curl_handle, CURLOPT_INTERFACE, handle->interface);
+  if (handle->if_name) {
+    curl_easy_setopt(curl_handle, CURLOPT_INTERFACE, handle->if_name);
   }
 
   if (handle->verbosity >= SRUN_VERBOSITY_DEBUG) {
@@ -159,8 +159,8 @@ char *request_get_location(const_srun_handle handle, const char *url) {
   }
 
   char *cert_path = NULL;
-  if (handle->cert_pem) {
-    cert_path = write_cert_to_tempfile(handle->cert_pem);
+  if (handle->cacert_pem) {
+    cert_path = write_cert_to_tempfile(handle->cacert_pem);
     if (!cert_path) {
       curl_easy_cleanup(curl_handle);
       errno = EIO;

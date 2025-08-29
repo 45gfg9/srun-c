@@ -42,18 +42,24 @@ extern "C" {
 #endif
 
 struct srun_context {
-  char *host;
+  char *base_url;
   char *username;
   char *password;
+
+  char *cacert_path;
+  char *cacert_pem;
+  size_t cacert_len;
+
   char *ip;
+  char *if_name;
 
-  const char *interface;
-
-  const char *cert_pem;
   int ac_id;
 
   enum srun_verbosity verbosity;
+
+  void *user_data;
 };
+
 typedef const struct srun_context *const_srun_handle;
 
 struct chall_response {

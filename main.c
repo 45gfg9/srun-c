@@ -66,14 +66,16 @@ enum {
 static const char *prog_name;
 
 static struct {
-  char *host;
+  char *base_url;
   char *username;
   char *password;
+
+  char *cacert_path;
+  size_t cacert_len;
+
   char *ip;
+  char *if_name;
 
-  char *interface;
-
-  char *cert_pem;
   int ac_id;
 
   enum srun_verbosity verbosity;
@@ -89,82 +91,37 @@ static void print_help(void) {
   puts("Options:");
   puts("  -h, --help");
   puts("          print this help message and exit");
-  puts("  -f, --config=FILE");
-  puts("          read options from FILE in JSON format");
-  puts("  -H, --host=HOST");
-  puts("          use HOST as the authentication server");
-  puts("          HOST should not include any path");
+  puts("  -b, --base-url=URL");
+  puts("          the authentication server base URL");
   puts("  -u, --username=USERNAME");
-  puts("          use USERNAME to login");
+  puts("          username for authentication");
   puts("  -p, --password=PASSWORD");
-  puts("          use PASSWORD to login");
-  puts("          If not specified, the program will ask interactively");
-  puts("          Password without username is not allowed and is ignored");
+  puts("          password for authentication");
+  puts("          if not specified, the program will ask interactively");
+  puts("          password without username is not allowed and is ignored");
   puts("  -a, --ac-id=ID");
-  puts("          use ID as ac_id for the login request");
-  puts("          If not specified, try to guess from the authentication server");
+  puts("          specify ac_id for the request");
+  puts("          if not specified, try to guess from the authentication server");
   puts("  -i, --ip=IP");
   puts("          use IP as the client IP");
   puts("  -I, --interface=INTERFACE");
-  puts("          use INTERFACE as the network interface");
-  puts("  -c, --cert-file=FILE");
-  puts("          use FILE as the PEM certificate");
+  puts("          bind request to specified network interface");
+  puts("          libcurl backend supports this option");
+  puts("  -c, --cacert=FILE");
+  puts("          specify the CA certificate file for authentication server");
   puts("  -q, --quiet");
   puts("          suppress standard output");
   puts("  -v, --verbose");
   puts("          enable verbose output to stderr");
-  puts("          Can be specified multiple times to increase verbosity, maximum is 2");
+  puts("          can be specified multiple times to increase verbosity, maximum is 2");
   puts("  -V, --version");
   puts("          print version information and exit");
-}
-
-static char *read_cert_file(const char *path) {
-  FILE *f = fopen(path, "r");
-  if (!f) {
-    perror(prog_name);
-    return NULL;
-  }
-  free(opts.cert_pem);
-
-  // read file contents
-  fseek(f, 0, SEEK_END);
-  size_t file_size = ftell(f);
-  rewind(f);
-  opts.cert_pem = malloc(file_size + 1);
-  if (!opts.cert_pem) {
-    perror(prog_name);
-    fclose(f);
-    return NULL;
-  }
-  size_t bytes_read = fread(opts.cert_pem, 1, file_size, f);
-  opts.cert_pem[bytes_read] = '\0';
-  fclose(f);
-
-  char *cert_begin = strstr(opts.cert_pem, "-----BEGIN CERTIFICATE-----");
-  char *cert_end = NULL;
-  if (cert_begin) {
-    cert_end = strstr(cert_begin, "-----END CERTIFICATE-----");
-  }
-
-  if (!cert_begin || !cert_end) {
-    fprintf(stderr, "Invalid certificate file: %s\n", path);
-    free(opts.cert_pem);
-    opts.cert_pem = NULL;
-    return NULL;
-  }
-  if (cert_begin != opts.cert_pem) {
-    size_t cert_len = strlen(cert_begin);
-    memmove(opts.cert_pem, cert_begin, cert_len);
-    opts.cert_pem[cert_len] = '\0';
-  }
-
-  return opts.cert_pem;
 }
 
 static void parse_opt(int argc, char *const *argv) {
   static const struct option LONG_OPTS[] = {
       {"help", no_argument, NULL, 'h'},
-      {"host", required_argument, NULL, 'H'},
+      {"base-url", required_argument, NULL, 'b'},
       {"username", required_argument, NULL, 'u'},
       {"password", required_argument, NULL, 'p'},
       {"ac-id", required_argument, NULL, 'a'},
@@ -176,7 +133,7 @@ static void parse_opt(int argc, char *const *argv) {
       {"version", no_argument, NULL, 'V'},
       {0},
   };
-  static const char SHORT_OPTS[] = "hH:u:p:a:i:I:c:qvV";
+  static const char SHORT_OPTS[] = "hb:u:p:a:i:I:c:qvV";
 
   int c;
   while ((c = getopt_long(argc, argv, SHORT_OPTS, LONG_OPTS, NULL)) != -1) {
@@ -184,9 +141,9 @@ static void parse_opt(int argc, char *const *argv) {
       case 'h':
         print_help();
         exit(EXIT_SUCCESS);
-      case 'H':
-        free(opts.host);
-        opts.host = strdup(optarg);
+      case 'b':
+        free(opts.base_url);
+        opts.base_url = strdup(optarg);
         break;
       case 'u':
         free(opts.username);
@@ -207,11 +164,12 @@ static void parse_opt(int argc, char *const *argv) {
         opts.ip = strdup(optarg);
         break;
       case 'I':
-        free(opts.interface);
-        opts.interface = strdup(optarg);
+        free(opts.if_name);
+        opts.if_name = strdup(optarg);
         break;
       case 'c':
-        read_cert_file(optarg);
+        free(opts.cacert_path);
+        opts.cacert_path = strdup(optarg);
         break;
       case 'q':
         opts.verbosity = SRUN_VERBOSITY_SILENT;
@@ -233,54 +191,6 @@ static void parse_opt(int argc, char *const *argv) {
   }
 }
 
-static int perform_login(srun_handle handle) {
-  if (!opts.username || opts.username[0] == '\0') {
-    // can't set password without username
-    free(opts.password);
-    opts.password = NULL;
-
-    char rpp_buffer[512];
-    readpassphrase("Username: ", rpp_buffer, sizeof rpp_buffer, RPP_ECHO_ON);
-    srun_setopt(handle, SRUNOPT_USERNAME, rpp_buffer);
-  }
-
-  if (!opts.password || opts.password[0] == '\0') {
-    char rpp_buffer[512];
-    readpassphrase("Password: ", rpp_buffer, sizeof rpp_buffer, RPP_ECHO_OFF);
-    srun_setopt(handle, SRUNOPT_PASSWORD, rpp_buffer);
-  }
-
-  int result = srun_login(handle);
-  if (result == SRUNE_OK) {
-    printf("Successfully logged in.\n");
-  } else {
-    printf("Login failed: error %d\n", result);
-    if (result == SRUNE_SYSTEM && errno) {
-      perror(prog_name);
-    }
-  }
-  return result;
-}
-
-static int perform_logout(srun_handle handle) {
-  if (!opts.username || opts.username[0] == '\0') {
-    char rpp_buffer[512];
-    readpassphrase("Username: ", rpp_buffer, sizeof rpp_buffer, RPP_ECHO_ON);
-    srun_setopt(handle, SRUNOPT_USERNAME, rpp_buffer);
-  }
-
-  int result = srun_logout(handle);
-  if (result == SRUNE_OK) {
-    printf("Successfully logged out.\n");
-  } else {
-    printf("Logout failed: error %d\n", result);
-    if (result == SRUNE_SYSTEM && errno) {
-      perror(prog_name);
-    }
-  }
-  return result;
-}
-
 int main(int argc, char **argv) {
   int retval = EXIT_FAILURE;
   prog_name = basename(argv[0]);
@@ -291,7 +201,7 @@ int main(int argc, char **argv) {
 
   // provide default values
   opts.verbosity = SRUN_VERBOSITY_NORMAL;
-  opts.ac_id = SRUN_AC_ID_UNKNOWN;
+  opts.ac_id = SRUN_AC_ID_GUESS;
 
   const char *action_str = argv[1];
 
@@ -316,37 +226,68 @@ help_guide:
     goto exit_cleanup;
   }
 
-  if (!(opts.host && opts.host[0])) {
+  if (!(opts.base_url && opts.base_url[0])) {
     fprintf(stderr, "Missing fields for %s.\n", action_str);
     goto help_guide;
   }
 
-  srun_handle handle = srun_create();
+  if (!opts.username || opts.username[0] == '\0') {
+    // can't set password without username
+    free(opts.password);
+    opts.password = NULL;
 
-  srun_setopt(handle, SRUNOPT_HOST, opts.host);
-  srun_setopt(handle, SRUNOPT_AC_ID, opts.ac_id);
-  if (opts.username && opts.username[0]) {
-    srun_setopt(handle, SRUNOPT_USERNAME, opts.username);
+    char rpp_buffer[512];
+    readpassphrase("Username: ", rpp_buffer, sizeof rpp_buffer, RPP_ECHO_ON);
+    opts.username = strdup(rpp_buffer);
   }
-  if (opts.password && opts.password[0]) {
-    srun_setopt(handle, SRUNOPT_PASSWORD, opts.password);
-  }
-  if (opts.ip && opts.ip[0]) {
-    srun_setopt(handle, SRUNOPT_IP, opts.ip);
-  }
-  if (opts.interface && opts.interface[0]) {
-    srun_setopt(handle, SRUNOPT_INTERFACE, opts.interface);
-  }
-  if (opts.cert_pem && opts.cert_pem[0]) {
-    srun_setopt(handle, SRUNOPT_CACERT, opts.cert_pem);
-  }
-  srun_setopt(handle, SRUNOPT_VERBOSITY, opts.verbosity);
+
+  int (*action_func)(srun_handle) = NULL;
+  const char *action_name = NULL;
 
   if (action == ACTION_LOGIN) {
-    retval = perform_login(handle) != SRUNE_OK;
-  } else if (action == ACTION_LOGOUT) {
-    retval = perform_logout(handle) != SRUNE_OK;
+    if (!opts.password || opts.password[0] == '\0') {
+      char rpp_buffer[512];
+      readpassphrase("Password: ", rpp_buffer, sizeof rpp_buffer, RPP_ECHO_OFF);
+      opts.password = strdup(rpp_buffer);
+    }
+    action_func = srun_login;
+    action_name = "in";
+  } else {
+    action_func = srun_logout;
+    action_name = "out";
   }
+
+  srun_config config = {
+      .base_url = opts.base_url,
+      .username = opts.username,
+      .password = opts.password,
+
+      .cacert_path = opts.cacert_path,
+      .cacert_pem = NULL,
+      .cacert_len = opts.cacert_len,
+
+      .ip = opts.ip,
+      .if_name = opts.if_name,
+
+      .ac_id = opts.ac_id,
+      .verbosity = opts.verbosity,
+
+      .user_data = NULL,
+  };
+
+  srun_handle handle = srun_create(&config);
+
+  retval = action_func(handle);
+  if (retval == SRUNE_OK) {
+    printf("Successfully logged %s.\n", action_name);
+  } else {
+    printf("Log%s failed: error %d\n", action_name, retval);
+    if (retval == SRUNE_SYSTEM && errno) {
+      perror(prog_name);
+    }
+  }
+
+  retval = retval == SRUNE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
 
   srun_cleanup(handle);
   handle = NULL;
@@ -356,12 +297,12 @@ exit_cleanup:
     memset(opts.password, 0, strlen(opts.password));
   }
 
-  free(opts.host);
+  free(opts.base_url);
   free(opts.username);
   free(opts.password);
+  free(opts.cacert_path);
   free(opts.ip);
-  free(opts.interface);
-  free(opts.cert_pem);
+  free(opts.if_name);
   memset(&opts, 0, sizeof opts);
 
   return retval;

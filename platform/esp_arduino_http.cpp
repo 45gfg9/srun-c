@@ -17,6 +17,8 @@
 #include <WiFiClientSecure.h>
 #include <ESP8266HTTPClient.h>
 #else
+#include <WiFiClient.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #endif
 
@@ -46,8 +48,8 @@ static char *request(const_srun_handle handle, const char *url, client_req_func 
   if (strncmp(url, "https://", 8) == 0) {
     auto psecure = new WiFiClientSecure;
     pclient.reset(psecure);
-    if (handle->cert_pem && handle->cert_pem[0]) {
-      psecure->setCACert(handle->cert_pem);
+    if (handle->cacert_pem && handle->cacert_pem[0]) {
+      psecure->setCACert(handle->cacert_pem);
     }
   } else {
     pclient.reset(new WiFiClient);

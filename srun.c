@@ -15,7 +15,7 @@
 
 #define PATH_GET_CHAL "/cgi-bin/get_challenge"
 #define PATH_PORTAL "/cgi-bin/srun_portal"
-#define PATH_USER_INFO "/cgi-bin/rad_user_info"
+#define PATH_USER_DM "/cgi-bin/rad_user_dm"
 
 #define CHALL_ENC_VER "srun_bx1"
 #define CHALL_N "200"
@@ -331,76 +331,56 @@ static char *url_concat(const char *first, const char *second) {
   return result;
 }
 
-srun_handle srun_create(void) {
+srun_handle srun_create(srun_config *config) {
+  if (!config || !config->base_url || !config->username) {
+    errno = EINVAL;
+    return NULL;
+  }
+
   // allocate a new context
   srun_handle handle = (srun_handle)calloc(1, sizeof(struct srun_context));
   if (!handle) {
     return NULL;
   }
-  handle->ac_id = SRUN_AC_ID_UNKNOWN;
-  handle->ip = strdup("");
-  handle->verbosity = SRUN_VERBOSITY_SILENT;
+
+  if (!(handle->base_url = strdup(config->base_url)) || !(handle->username = strdup(config->username))
+      || (config->password && !(handle->password = strdup(config->password)))
+      || (config->cacert_pem && !(handle->cacert_pem = strdup(config->cacert_pem)))
+      || (config->ip && !(handle->ip = strdup(config->ip)))
+      || (config->if_name && !(handle->if_name = strdup(config->if_name)))) {
+    goto nomem_fail;
+  }
+
+  if (config->cacert_pem) {
+    handle->cacert_len = config->cacert_len ? config->cacert_len : strlen(config->cacert_pem);
+  } else if (config->cacert_path && !(handle->cacert_path = strdup(config->cacert_path))) {
+    goto nomem_fail;
+  }
+
+  handle->ac_id = config->ac_id;
+  handle->verbosity = config->verbosity;
+
+  handle->user_data = config->user_data;
+
   return handle;
+
+nomem_fail:
+  srun_cleanup(handle);
+  return NULL;
 }
 
 void srun_cleanup(srun_handle handle) {
   if (handle->password) {
     memset(handle->password, 0, strlen(handle->password));
   }
-  free(handle->username);
-  free(handle->password);
+  free(handle->if_name);
   free(handle->ip);
-  free(handle->host);
+  free(handle->cacert_pem);
+  free(handle->cacert_path);
+  free(handle->password);
+  free(handle->username);
+  free(handle->base_url);
   free(handle);
-}
-
-void srun_setopt(srun_handle handle, srun_option option, ...) {
-  if (!handle) {
-    errno = EINVAL;
-    return;
-  }
-
-  va_list args;
-  va_start(args, option);
-
-  // on out of memory, strdup will set errno to ENOMEM
-  switch (option) {
-    case SRUNOPT_HOST:
-      free(handle->host);
-      handle->host = strdup(va_arg(args, const char *));
-      break;
-    case SRUNOPT_USERNAME:
-      free(handle->username);
-      handle->username = strdup(va_arg(args, const char *));
-      break;
-    case SRUNOPT_PASSWORD:
-      free(handle->password);
-      handle->password = strdup(va_arg(args, const char *));
-      break;
-    case SRUNOPT_AC_ID:
-      handle->ac_id = va_arg(args, int);
-      break;
-    case SRUNOPT_INTERFACE:
-      handle->interface = va_arg(args, const char *);
-      break;
-    case SRUNOPT_CACERT:
-      handle->cert_pem = va_arg(args, const char *);
-      break;
-    case SRUNOPT_IP:
-      free(handle->ip);
-      handle->ip = strdup(va_arg(args, const char *));
-      break;
-    case SRUNOPT_VERBOSITY:
-      handle->verbosity = (enum srun_verbosity)va_arg(args, int);
-      if (handle->verbosity < SRUN_VERBOSITY_SILENT) {
-        handle->verbosity = SRUN_VERBOSITY_SILENT;
-      } else if (handle->verbosity > SRUN_VERBOSITY_DEBUG) {
-        handle->verbosity = SRUN_VERBOSITY_DEBUG;
-      }
-      break;
-  }
-
-  va_end(args);
 }
 
 static int json_strip_callback(char *buf) {
@@ -416,7 +396,7 @@ static int json_strip_callback(char *buf) {
 }
 
 static int get_ac_id(const_srun_handle handle) {
-  char *url = strdup(handle->host);
+  char *url = strdup(handle->base_url);
   int redirect_count = 0;
   const int max_redirects = 10; // Prevent infinite redirect loops
 
@@ -432,7 +412,7 @@ static int get_ac_id(const_srun_handle handle) {
 
     if (!location) {
       srun_log_error("Failed to guess ac_id. Login is very likely to fail.\n");
-      return SRUN_AC_ID_UNKNOWN;
+      return SRUN_AC_ID_GUESS;
     }
     srun_log_debug(handle->verbosity, "Location: %s\n", location);
 
@@ -454,15 +434,17 @@ static int get_ac_id(const_srun_handle handle) {
 
   srun_log_error("Too many redirects while trying to guess ac_id.\n");
   free(url);
-  return SRUN_AC_ID_UNKNOWN;
+  return SRUN_AC_ID_GUESS;
 }
 
-static int get_challenge(struct chall_response *chall, const_srun_handle handle, unsigned long long req_time) {
+static int get_challenge(struct chall_response *chall, const_srun_handle handle) {
   // callback parameter serves no purpose
+  const unsigned long long req_time = time(NULL);
   static const char chall_fmtstr[] = "%s" PATH_GET_CHAL "?callback=jQuery98"
                                      "&username=%s&ip=%s&_=%llu000";
+  const char *client_ip = handle->ip ? handle->ip : "";
   char *chall_url;
-  if (asprintf(&chall_url, chall_fmtstr, handle->host, handle->username, handle->ip, req_time) == -1) {
+  if (asprintf(&chall_url, chall_fmtstr, handle->base_url, handle->username, client_ip, req_time) == -1) {
     return SRUNE_SYSTEM;
   }
   srun_log_debug(handle->verbosity, "Challenge URL: %s\n", chall_url);
@@ -504,21 +486,18 @@ static int get_portal(struct portal_response *chall, const_srun_handle handle, c
 }
 
 int srun_login(srun_handle handle) {
-  if (!handle->host || !handle->username || !handle->password || !handle->host[0] || !handle->username[0]
-      || !handle->password[0]) {
+  if (!handle->password) {
     return SRUNE_INVALID_CTX;
   }
 
   // 1. if ac_id is not set, try to get it from the server
-  if (handle->ac_id == SRUN_AC_ID_UNKNOWN) {
+  if (handle->ac_id == SRUN_AC_ID_GUESS) {
     handle->ac_id = get_ac_id(handle);
   }
 
-  const unsigned long long req_time = time(NULL);
-
   // 2. get challenge response
   struct chall_response chall;
-  int retval = get_challenge(&chall, handle, req_time);
+  int retval = get_challenge(&chall, handle);
   if (retval != SRUNE_OK) {
     return retval;
   }
@@ -526,13 +505,9 @@ int srun_login(srun_handle handle) {
   const size_t token_len = strlen(chall.token);
 
   // 3. if ip is not set, use the one from challenge response
-  if (!handle->ip || !handle->ip[0]) {
-    srun_setopt(handle, SRUNOPT_IP, chall.client_ip);
-    if (!handle->ip) {
-nomem_free_chall:
-      free_chall_response(&chall);
-      return SRUNE_SYSTEM;
-    }
+  if (!handle->ip) {
+    handle->ip = chall.client_ip;
+    chall.client_ip = NULL; // prevent double free
   }
 
   // 4. construct challenge response
@@ -556,7 +531,9 @@ nomem_free_chall:
   uint8_t *xenc_info = (uint8_t *)malloc(xenc_info_len);
   if (!xenc_info) {
     free(info_str);
-    goto nomem_free_chall;
+nomem_free_chall:
+    free_chall_response(&chall);
+    return SRUNE_SYSTEM;
   }
   x_encode((const uint8_t *)info_str, info_str_len, (const uint8_t *)chall.token, token_len, xenc_info, xenc_info_len);
   free(info_str);
@@ -599,18 +576,19 @@ nomem_free_chall:
   char *url_encoded_info = url_encode(b64enc_info);
   free(b64enc_info);
   if (!url_encoded_info) {
-    return SRUNE_SYSTEM;
+    goto nomem_free_chall;
   }
 
+  const unsigned long long req_time = time(NULL);
   static const char portal_fmtstr[] = "%s" PATH_PORTAL "?callback=jQuery98&n=%s&type=%s&_=%llu000"
                                       "&username=%s&password=%%7BMD5%%7D%s&ac_id=%d&ip=%s&chksum=%s&info=%s"
                                       "&action=login&os=Linux&name=Linux&double_stack=0";
   char *portal_url;
-  if (asprintf(&portal_url, portal_fmtstr, handle->host, CHALL_N, CHALL_TYPE, req_time, handle->username, hmac_md5_hex,
-               handle->ac_id, handle->ip, sha1_hex, url_encoded_info)
+  if (asprintf(&portal_url, portal_fmtstr, handle->base_url, CHALL_N, CHALL_TYPE, req_time, handle->username,
+               hmac_md5_hex, handle->ac_id, handle->ip, sha1_hex, url_encoded_info)
       == -1) {
     free(url_encoded_info);
-    return SRUNE_SYSTEM;
+    goto nomem_free_chall;
   }
   free(url_encoded_info);
 
@@ -643,29 +621,47 @@ nomem_free_chall:
 int srun_logout(srun_handle handle) {
   const unsigned long long req_time = time(NULL);
 
-  // 1. guess ac_id if not set
-  if (handle->ac_id == SRUN_AC_ID_UNKNOWN) {
-    handle->ac_id = get_ac_id(handle);
-  }
-
-  // 2. get client_ip from challenge response if not set, required by logout
-  if (!handle->ip || !handle->ip[0]) {
+  // 1. get client_ip from challenge response if not set, required by logout
+  char *client_ip;
+  if (handle->ip && handle->ip[0]) {
+    client_ip = strdup(handle->ip);
+  } else {
     struct chall_response chall;
-    int retval = get_challenge(&chall, handle, req_time);
+    int retval = get_challenge(&chall, handle);
     if (retval != SRUNE_OK) {
       return retval;
     }
-    srun_setopt(handle, SRUNOPT_IP, chall.client_ip);
+    client_ip = chall.client_ip;
+    chall.client_ip = NULL;
     free_chall_response(&chall);
   }
 
-  // 3. construct logout request URL
-  static const char logout_fmtstr[] = "%s" PATH_PORTAL "?callback=jQuery98&action=logout"
-                                      "&_=%llu000&username=%s&ip=%s&ac_id=%d";
-  char *logout_url;
-  if (asprintf(&logout_url, logout_fmtstr, handle->host, req_time, handle->username, handle->ip, handle->ac_id) == -1) {
+  // 2. calculate dm SHA1 sign
+  // sign = SHA1(time | username | ip | '1' | time)
+  char *sign_str;
+  int sign_str_len = asprintf(&sign_str, "%llu%s%s1%llu", req_time, handle->username, client_ip, req_time);
+  if (sign_str_len == -1) {
+nomem_free_ip:
+    free(client_ip);
     return SRUNE_SYSTEM; // memory allocation failed
   }
+  uint8_t sha1_buf[20];
+  char sha1_hex[41];
+  sha1_digest((const uint8_t *)sign_str, strlen(sign_str), sha1_buf);
+  for (unsigned int i = 0; i < sizeof sha1_buf; i++) {
+    snprintf(&sha1_hex[2 * i], 3, "%02hhx", sha1_buf[i]);
+  }
+  free(sign_str);
+
+  // 3. construct logout request URL
+  static const char logout_fmtstr[] = "%s" PATH_USER_DM "?callback=jQuery98&ip=%s&username=%s&time=%llu"
+                                      "&unbind=1&sign=%s&_=%llu000";
+  char *logout_url;
+  if (asprintf(&logout_url, logout_fmtstr, handle->base_url, client_ip, handle->username, req_time, sha1_hex, req_time)
+      == -1) {
+    goto nomem_free_ip;
+  }
+  free(client_ip);
 
   // 4. perform logout request
   struct portal_response resp;
@@ -675,7 +671,7 @@ int srun_logout(srun_handle handle) {
     return retval;
   }
 
-  if (strcmp(resp.error, "ok") == 0) {
+  if (strcmp(resp.error, "logout_ok") == 0 || strcmp(resp.error, "not_online_error") == 0) {
     // logout successful
     free_portal_response(&resp);
     return SRUNE_OK;

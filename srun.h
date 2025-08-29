@@ -11,11 +11,13 @@
 extern "C" {
 #endif
 
+#include <stdlib.h>
+
 enum srun_verbosity {
   /**
    * @brief Suppress stdout. Errors will be printed to stderr.
    */
-  SRUN_VERBOSITY_SILENT,
+  SRUN_VERBOSITY_SILENT = 0,
 
   /**
    * @brief Print connection status to stdout.
@@ -35,113 +37,59 @@ enum srun_verbosity {
 
 typedef struct srun_context *srun_handle;
 
-typedef enum srun_option {
-  /**
-   * Authentication server host. Required.
-   * Type: char *
-   */
-  SRUNOPT_HOST,
+typedef struct srun_config {
+  const char *base_url; // Authentication server base URL.
+  const char *username; // Username for authentication.
+  const char *password; // Password for authentication.
 
-  /**
-   * Username. Required for login.
-   * Type: char *
-   */
-  SRUNOPT_USERNAME,
+  const char *cacert_path; // Path to CA certificate file. If cacert_pem is not NULL, this field is ignored.
+  const char *cacert_pem;  // CA certificate in PEM format.
+  size_t cacert_len;       // Length of CA certificate PEM. If 0, assume cacert_pem is null-terminated.
 
-  /**
-   * Password. Required for login.
-   * Type: char *
-   */
-  SRUNOPT_PASSWORD,
+  const char *ip;      // Client IP address.
+  const char *if_name; // Network interface to use.
 
-  /**
-   * ac_id. Required.
-   * Type: int
-   */
-  SRUNOPT_AC_ID,
+  int ac_id; // Portal ac_id.
 
+  enum srun_verbosity verbosity; // Verbosity level.
+
+  void *user_data; // User data pointer.
+} srun_config;
+
+enum srun_errno {
   /**
-   * CA cert used to verify server. PEM format. This field is
-   * NOT copied and must be valid until the handle is cleaned up.
-   * Required if the server uses HTTPS and untrusted certificate.
-   * On ESP32, see also SRUNOPT_USE_ESP_CRT_BUNDLE.
-   * Type: const char *
+   * Success.
    */
-  SRUNOPT_CACERT,
+  SRUNE_OK = 0,
 
   /**
-   * Set to 1 to use ESP x509 certificate bundle.
-   * Ignored if SRUNOPT_CACERT is set.
-   * Has no effect on non-ESP platforms.
-   * Type: int
+   * Network error.
    */
-  // SRUNOPT_USE_ESP_CRT_BUNDLE,
+  SRUNE_NETWORK = -1,
 
   /**
-   * Client IP. Optional for login.
-   * Leave unset to use the default assigned IP.
-   * Type: char *
+   * Invalid context (missing fields).
    */
-  SRUNOPT_IP,
+  SRUNE_INVALID_CTX = -2,
 
   /**
-   * Network interface. Optional.
-   * Leave unset to use the default interface.
-   * Has no effect on ESP platforms.
-   * Type: const char *
+   * System error. See errno.
    */
-  SRUNOPT_INTERFACE,
-
-  /**
-   * Verbosity level. See enum srun_verbosity.
-   * Default is SRUN_VERBOSITY_SILENT.
-   * Type: int
-   */
-  SRUNOPT_VERBOSITY,
-} srun_option;
-
-/**
- * Success.
- */
-#define SRUNE_OK 0
-
-/**
- * Network error.
- */
-#define SRUNE_NETWORK (-1)
-
-/**
- * Invalid context (missing fields).
- */
-#define SRUNE_INVALID_CTX (-2)
-
-/**
- * System error. See errno.
- */
-#define SRUNE_SYSTEM (-3)
+  SRUNE_SYSTEM = -3,
+};
 
 /**
  * Special value indicating that the ac_id is unknown.
  * The library will try to find it automatically.
  */
-#define SRUN_AC_ID_UNKNOWN (-1)
+enum { SRUN_AC_ID_GUESS = 0 };
 
 /**
  * Create a new srun handle. This handle must be freed by `srun_cleanup`.
  *
  * @return A new srun handle
  */
-srun_handle srun_create(void);
-
-void srun_setopt(srun_handle handle, srun_option option, ...);
-/**
- * Set option of srun handle.
- *
- * @param context srun context
- * @param option
- * @param value
- */
-#define srun_setopt(handle, option, value) srun_setopt(handle, option, value)
+srun_handle srun_create(srun_config *config);
 
 /**
  * Perform login. The username, password and auth server must be set.
