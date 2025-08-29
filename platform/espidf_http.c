@@ -27,53 +27,56 @@ static void request(const_srun_handle handle, const char *url, http_event_handle
   };
 
   esp_http_client_handle_t client = esp_http_client_init(&config);
-  esp_http_client_perform(client);
+
+  esp_err_t err = esp_http_client_perform(client);
+  if (err != ESP_OK) {
+    srun_log_error("HTTP GET request failed: %s", esp_err_to_name(err));
+  }
+
   esp_http_client_cleanup(client);
 }
 
-struct get_body_response {
-  int content_length;
-  char *data;
-};
-
 esp_err_t request_get_body_event_handler(esp_http_client_event_t *evt) {
-  struct get_body_response *response = evt->user_data;
+  char **pbody = evt->user_data;
   if (evt->event_id == HTTP_EVENT_ON_HEADER && !strcasecmp(evt->header_key, "Content-Length")) {
-    response->content_length = (int)strtol(evt->header_value, NULL, 10);
-  } else if (evt->event_id == HTTP_EVENT_ON_DATA) {
-    if (response->data == NULL) {
-      response->data = malloc(response->content_length + 1);
-      if (response->data == NULL) {
-        return ESP_FAIL;
-      }
-      response->data[0] = '\0';
+    size_t content_length = strtol(evt->header_value, NULL, 10);
+    // it's unlikely that server responds with multiple Content-Length,
+    // but just in case.
+    if (*pbody) {
+      free(*pbody);
     }
-    strncat(response->data, evt->data, evt->data_len);
+    *pbody = malloc(content_length + 1);
+    if (*pbody == NULL) {
+      return ESP_FAIL;
+    }
+    (*pbody)[0] = '\0';
+  } else if (evt->event_id == HTTP_EVENT_ON_DATA) {
+    strncat(*pbody, evt->data, evt->data_len);
   }
   return ESP_OK;
 }
 
 char *request_get_body(const_srun_handle handle, const char *url) {
-  struct get_body_response response = {};
-  request(handle, url, request_get_body_event_handler, &response);
-  return response.data;
+  char *body = NULL;
+  request(handle, url, request_get_body_event_handler, &body);
+  return body;
 }
 
 static esp_err_t request_get_location_event_handler(esp_http_client_event_t *evt) {
   if (evt->event_id == HTTP_EVENT_ON_HEADER && !strcasecmp(evt->header_key, "Location")) {
-    char **pserver = evt->user_data;
-    if (*pserver) {
-      free(*pserver);
+    char **plocation = evt->user_data;
+    if (*plocation) {
+      free(*plocation);
     }
-    *pserver = strdup(evt->header_value);
+    *plocation = strdup(evt->header_value);
   }
   return ESP_OK;
 }
 
 char *request_get_location(const_srun_handle handle, const char *url) {
-  char *server = NULL;
-  request(handle, url, request_get_location_event_handler, &server);
-  return server;
+  char *location = NULL;
+  request(handle, url, request_get_location_event_handler, &location);
+  return location;
 }
 
 #endif
