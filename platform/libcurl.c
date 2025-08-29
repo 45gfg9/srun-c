@@ -13,6 +13,8 @@
 #include <unistd.h>
 #include <curl/curl.h>
 
+typedef char *(*client_req_func)(CURL *);
+
 struct curl_string {
   char *ptr;
   size_t len;
@@ -85,7 +87,7 @@ static char *write_cert_to_tempfile(const char *cert_pem) {
   return template; // Caller must unlink() and free()
 }
 
-char *request_get_body(const_srun_handle handle, const char *url) {
+static char *request(const_srun_handle handle, const char *url, client_req_func func) {
   CURL *curl_handle = curl_easy_init();
   if (!curl_handle) {
     // https://curl.se/libcurl/c/curl_easy_init.html
@@ -94,12 +96,7 @@ char *request_get_body(const_srun_handle handle, const char *url) {
     return NULL;
   }
 
-  struct curl_string resp_string;
-  init_string(&resp_string);
-
   curl_easy_setopt(curl_handle, CURLOPT_URL, url);
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_ptr_writefunc);
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, &resp_string);
 
   if (handle->if_name) {
     curl_easy_setopt(curl_handle, CURLOPT_INTERFACE, handle->if_name);
@@ -109,57 +106,10 @@ char *request_get_body(const_srun_handle handle, const char *url) {
     curl_easy_setopt(curl_handle, CURLOPT_VERBOSE, 1L);
   }
 
-  char *cert_path = NULL;
+  char *cert_path = handle->cacert_path;
+  int temp_file_used = 0;
   if (handle->cacert_pem) {
-    cert_path = write_cert_to_tempfile(handle->cacert_pem);
-    if (!cert_path) {
-      curl_easy_cleanup(curl_handle);
-      errno = EINVAL;
-      return NULL;
-    }
-    srun_log_debug(handle->verbosity, "Certificate written to %s\n", cert_path);
-    curl_easy_setopt(curl_handle, CURLOPT_CAINFO, cert_path);
-  }
-
-  CURLcode res = curl_easy_perform(curl_handle);
-  curl_easy_cleanup(curl_handle);
-
-  if (cert_path) {
-    unlink(cert_path);
-    free(cert_path);
-  }
-
-  if (res != CURLE_OK) {
-    srun_log_error("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-    free(resp_string.ptr);
-    errno = EIO; // I/O error
-    return NULL;
-  }
-
-  return resp_string.ptr;
-}
-
-char *request_get_location(const_srun_handle handle, const char *url) {
-  CURL *curl_handle = curl_easy_init();
-  if (!curl_handle) {
-    errno = EAGAIN; // resource temporarily unavailable
-    return NULL;
-  }
-
-  curl_easy_setopt(curl_handle, CURLOPT_URL, url);
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_null_writefunc);
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, NULL);
-
-  if (handle->if_name) {
-    curl_easy_setopt(curl_handle, CURLOPT_INTERFACE, handle->if_name);
-  }
-
-  if (handle->verbosity >= SRUN_VERBOSITY_DEBUG) {
-    curl_easy_setopt(curl_handle, CURLOPT_VERBOSE, 1L);
-  }
-
-  char *cert_path = NULL;
-  if (handle->cacert_pem) {
+    temp_file_used = 1;
     cert_path = write_cert_to_tempfile(handle->cacert_pem);
     if (!cert_path) {
       curl_easy_cleanup(curl_handle);
@@ -170,25 +120,64 @@ char *request_get_location(const_srun_handle handle, const char *url) {
     curl_easy_setopt(curl_handle, CURLOPT_CAINFO, cert_path);
   }
 
-  char *location = NULL;
-  CURLcode res = curl_easy_perform(curl_handle);
-  if (res == CURLE_OK) {
-    res = curl_easy_getinfo(curl_handle, CURLINFO_REDIRECT_URL, &location);
-    if (res == CURLE_OK) {
-      if (location && location[0]) {
-        location = strdup(location);
-      }
-    } else {
-      srun_log_error("curl_easy_getinfo() failed: %s\n", curl_easy_strerror(res));
-    }
-  } else {
-    srun_log_error("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-  }
+  char *ret = func(curl_handle);
 
   curl_easy_cleanup(curl_handle);
-  if (cert_path) {
+  if (temp_file_used) {
     unlink(cert_path);
     free(cert_path);
   }
-  return location;
+
+  return ret;
+}
+
+static char *request_get_body_func(CURL *curl_handle) {
+  struct curl_string resp_string;
+  init_string(&resp_string);
+
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_ptr_writefunc);
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, &resp_string);
+
+  CURLcode res = curl_easy_perform(curl_handle);
+  if (res != CURLE_OK) {
+    srun_log_error("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+    free(resp_string.ptr);
+    errno = EIO;
+    return NULL;
+  }
+
+  return resp_string.ptr;
+}
+
+char *request_get_body(const_srun_handle handle, const char *url) {
+  return request(handle, url, request_get_body_func);
+}
+
+static char *request_get_location_func(CURL *curl_handle) {
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, curl_null_writefunc);
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, NULL);
+
+  CURLcode res = curl_easy_perform(curl_handle);
+  if (res != CURLE_OK) {
+    srun_log_error("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+    errno = EIO;
+    return NULL;
+  }
+
+  char *location = NULL;
+  res = curl_easy_getinfo(curl_handle, CURLINFO_REDIRECT_URL, &location);
+  if (res != CURLE_OK) {
+    srun_log_error("curl_easy_getinfo() failed: %s\n", curl_easy_strerror(res));
+    errno = EIO;
+    return NULL;
+  }
+
+  if (location && location[0]) {
+    return strdup(location);
+  }
+  return NULL;
+}
+
+char *request_get_location(const_srun_handle handle, const char *url) {
+  return request(handle, url, request_get_location_func);
 }
