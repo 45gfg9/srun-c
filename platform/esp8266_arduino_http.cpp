@@ -4,57 +4,32 @@
  * as published by Sam Hocevar. See the LICENSE file for more details.
  */
 
-#if ARDUINO && (ESP_PLATFORM || ESP32 || ESP8266)
+#if ARDUINO && ESP8266
 
 #include "compat.h"
 
-// Currently we just reuse ESP32 and ESP8266 code for as much as possible.
-// If two APIs ever deviate too much, we do separate handling then.
-
 #include <memory>
-
-#if ESP8266
 #include <WiFiClientSecure.h>
 #include <ESP8266HTTPClient.h>
-#else
-#include <WiFiClient.h>
-#include <WiFiClientSecure.h>
-#include <HTTPClient.h>
-#endif
 
 using client_req_func = char *(HTTPClient &client);
 
-static char *request(const_srun_handle handle, const char *url, client_req_func *func) {
+static char *request(const_srun_handle handle, const char *url, client_req_func func) {
   std::unique_ptr<WiFiClient> pclient;
   HTTPClient http;
 
-#if ESP8266
-  X509List x509;
   if (strncmp(url, "https://", 8) == 0) {
     auto psecure = new WiFiClientSecure;
     pclient.reset(psecure);
-    if (handle->cert_pem && handle->cert_pem[0]) {
-      // cert MUST be configured for ESP8266 to work
-      // if no cert is provided, the connection will fail
-      // see ESP8266WiFi/src/WiFiClientSecureBearSSL.cpp
-      x509.append(handle->cert_pem);
-      psecure->setTrustAnchors(&x509);
-    }
+
+    // For ESP8266, we disable certificate verification completely because it
+    // will always verify cert expiration time, however when not connected the
+    // time cannot be synced.
+    // In contrast ESP-IDF supports certificate verification w/o time check
+    psecure->setInsecure();
   } else {
     pclient.reset(new WiFiClient);
   }
-#else
-  // TODO: test & esp32_cert_bundle
-  if (strncmp(url, "https://", 8) == 0) {
-    auto psecure = new WiFiClientSecure;
-    pclient.reset(psecure);
-    if (handle->cacert_pem && handle->cacert_pem[0]) {
-      psecure->setCACert(handle->cacert_pem);
-    }
-  } else {
-    pclient.reset(new WiFiClient);
-  }
-#endif
   http.begin(*pclient, url);
 
   char *response = func(http);
