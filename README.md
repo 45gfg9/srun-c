@@ -48,10 +48,10 @@ cmake -B cmake-build -DSRUN_CRYPTO=mbedtls  # or openssl, self
 ```sh
 # login
 ./cmake-build/srun login -b https://auth.my.edu -a 12 -u HarumiEna -p mysupersecretpassword
-# login, ask username and password interactively
-./cmake-build/srun login -b https://auth.my.edu -a 12
+# login, ask username and password interactively, guess ac_id automatically
+./cmake-build/srun login -b https://auth.my.edu
 # logout
-./cmake-build/srun logout -b https://auth.my.edu -a 12
+./cmake-build/srun logout -b https://auth.my.edu
 # help
 ./cmake-build/srun -h
 ```
