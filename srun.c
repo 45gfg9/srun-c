@@ -520,6 +520,11 @@ int srun_login(srun_handle handle) {
 
   // 4.2. info field
   char *const info_str = create_info_field(handle, CHALL_ENC_VER);
+  if (!info_str) {
+nomem_free_chall:
+    free_chall_response(&chall);
+    return SRUNE_SYSTEM;
+  }
   const size_t info_str_len = strlen(info_str);
 
   // 4.3. x_encode the info field
@@ -527,9 +532,7 @@ int srun_login(srun_handle handle) {
   uint8_t *xenc_info = (uint8_t *)malloc(xenc_info_len);
   if (!xenc_info) {
     free(info_str);
-nomem_free_chall:
-    free_chall_response(&chall);
-    return SRUNE_SYSTEM;
+    goto nomem_free_chall;
   }
   x_encode((const uint8_t *)info_str, info_str_len, (const uint8_t *)chall.token, token_len, xenc_info, xenc_info_len);
   free(info_str);

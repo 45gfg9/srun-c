@@ -25,7 +25,7 @@ static char *request(const_srun_handle handle, const char *url, client_req_func 
     // For ESP8266, we disable certificate verification completely because it
     // will always verify cert expiration time, however when not connected the
     // time cannot be synced.
-    // In contrast ESP-IDF supports certificate verification w/o time check
+    // By contrast ESP-IDF supports certificate verification w/o time check
     psecure->setInsecure();
   } else {
     pclient.reset(new WiFiClient);
