@@ -8,16 +8,50 @@
 
 #include "compat.h"
 
-#include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <esp_http_client.h>
 #include <esp_crt_bundle.h>
 
+static char *read_file(const char *path, size_t *out_len) {
+  FILE *f = fopen(path, "rb");
+  if (!f) {
+    srun_log_error("Failed to open file: %s", path);
+    return NULL;
+  }
+  fseek(f, 0, SEEK_END);
+  long len = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  char *buf = malloc(len + 1);
+  if (!buf) {
+    srun_log_error("Failed to allocate memory for file: %s", path);
+    fclose(f);
+    return NULL;
+  }
+  fread(buf, 1, len, f);
+  buf[len] = '\0';
+  fclose(f);
+  if (out_len) {
+    *out_len = len;
+  }
+  return buf;
+}
+
 static void request(const_srun_handle handle, const char *url, http_event_handle_cb evt_handler, void *user_data) {
+  char *cert_pem = handle->cacert_pem;
+  size_t cert_len = 0; // auto detect
+  int cacert_read_from_file = 0;
+
+  if (!cert_pem && handle->cacert_path) {
+    cacert_read_from_file = 1;
+    cert_pem = read_file(handle->cacert_path, &cert_len);
+  }
+
   esp_http_client_config_t config = {
       .url = url,
-      .cert_pem = handle->cacert_pem,
-      .cert_len = 0, // auto detect
+      .cert_pem = cert_pem,
+      .cert_len = cert_len,
       .method = HTTP_METHOD_GET,
       .disable_auto_redirect = true,
       .event_handler = evt_handler,
@@ -34,6 +68,10 @@ static void request(const_srun_handle handle, const char *url, http_event_handle
   }
 
   esp_http_client_cleanup(client);
+
+  if (cacert_read_from_file) {
+    free(cert_pem);
+  }
 }
 
 static esp_err_t request_get_body_event_handler(esp_http_client_event_t *evt) {
