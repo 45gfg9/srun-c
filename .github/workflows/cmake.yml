@@ -5,12 +5,10 @@ on:
     branches: [ main ]
     paths-ignore:
         - "**.md"
-        - "**.yml"
   pull_request:
     branches: [ main ]
     paths-ignore:
         - "**.md"
-        - "**.yml"
 
 env:
     BUILD_TYPE: RelWithDebInfo
@@ -33,6 +31,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew update
+          brew uninstall cmake
           brew install cmake cjson mbedtls
 
       - name: 'Linux: Install dependencies'
