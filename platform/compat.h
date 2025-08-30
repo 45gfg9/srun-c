@@ -56,8 +56,6 @@ struct srun_context {
   int ac_id;
 
   enum srun_verbosity verbosity;
-
-  void *user_data;
 };
 
 typedef const struct srun_context *const_srun_handle;

@@ -348,7 +348,9 @@ srun_handle srun_create(srun_config *config) {
       || (config->cacert_pem && !(handle->cacert_pem = strdup(config->cacert_pem)))
       || (config->ip && !(handle->ip = strdup(config->ip)))
       || (config->if_name && !(handle->if_name = strdup(config->if_name)))) {
-    goto nomem_fail;
+nomem_fail:
+    srun_cleanup(handle);
+    return NULL;
   }
 
   if (config->cacert_pem) {
@@ -360,13 +362,7 @@ srun_handle srun_create(srun_config *config) {
   handle->ac_id = config->ac_id;
   handle->verbosity = config->verbosity;
 
-  handle->user_data = config->user_data;
-
   return handle;
-
-nomem_fail:
-  srun_cleanup(handle);
-  return NULL;
 }
 
 void srun_cleanup(srun_handle handle) {
