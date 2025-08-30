@@ -39,7 +39,7 @@ static void request(const_srun_handle handle, const char *url, http_event_handle
 esp_err_t request_get_body_event_handler(esp_http_client_event_t *evt) {
   char **pbody = evt->user_data;
   if (evt->event_id == HTTP_EVENT_ON_HEADER && !strcasecmp(evt->header_key, "Content-Length")) {
-    size_t content_length = strtol(evt->header_value, NULL, 10);
+    size_t content_length = strtoul(evt->header_value, NULL, 10);
     // it's unlikely that server responds with multiple Content-Length,
     // but just in case.
     if (*pbody) {
