@@ -117,6 +117,8 @@ static char *request(const_srun_handle handle, const char *url, client_req_func 
       return NULL;
     }
     srun_log_debug(handle->verbosity, "Certificate written to %s\n", cert_path);
+  }
+  if (cert_path) {
     curl_easy_setopt(curl_handle, CURLOPT_CAINFO, cert_path);
   }
 
