@@ -116,9 +116,9 @@ if (ret != SRUN_OK) {
 srun_cleanup(handle);
 ```
 
-`base_url` should only contain the hostname and optionally the scheme and port, but not any path. It is required for login and logout operations.
+Login requires at least `base_url`, `username` and `password`. Logout requires at least `base_url` and `username`.
 
-`username` and `password` are required for login operations, but not for logout operations.
+`base_url` should only contain the hostname and optionally the scheme and port, but not any path. It is required for login and logout operations.
 
 The Srun portal requires `ac_id`, an integer that may vary by institution. You usually can find it in the URL of the login page. If it is not set, `srun-c` will try to guess it from the authentication page, but this is not guaranteed to work in all cases (also see below).
 
@@ -130,7 +130,7 @@ ESP8266 has very limited resources. HTTPS requires some amount of RAM, and if yo
 
 > [!CAUTION]
 >
-> If you encounter issues, consider using HTTP but be aware that HTTP is insecure. Srun portal uses a XXTEA-variant encryption for the login request, but it is virtually useless; **if someone intercepts a full request, they can decrypt it and get your credentials.** This is left to you as an exercise.
+> If you encounter issues, consider using HTTP but be aware that HTTP is insecure. Srun portal uses a XXTEA-variant encryption for the login request, but it is virtually useless; **if someone intercepts a full login request, they can decrypt the payload and get your credentials.** This is left to you as an exercise.
 >
 > Depending on your institution's setup, `ac_id` detection may require HTTPS, other than that it may work fine with HTTP.
 
