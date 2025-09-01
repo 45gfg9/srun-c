@@ -105,15 +105,13 @@ static size_t x_encode(const uint8_t *src, size_t src_len, const uint8_t *key, s
   }
 
   uint32_t n = (src_len + 3) / 4 + 1;
-  uint32_t *encoded_msg = (uint32_t *)calloc(n, sizeof(uint32_t));
+  uint32_t *encoded_msg = malloc(n * sizeof(uint32_t));
   uint32_t encoded_key[4] = {0};
 
-  if (!encoded_msg) {
+  if (!(encoded_msg && s_encode(src, src_len, encoded_msg, 1) && s_encode(key, key_len, encoded_key, 0))) {
+    free(encoded_msg);
     return 0;
   }
-
-  s_encode(src, src_len, encoded_msg, 1);
-  s_encode(key, key_len, encoded_key, 0);
 
   for (uint32_t d = 0, q = 6 + 52 / n; q; q--) {
     uint32_t z = encoded_msg[n - 1];

@@ -40,7 +40,6 @@ static size_t curl_ptr_writefunc(char *ptr, size_t size, size_t nmemb, void *use
   size_t new_len = s->len + size * nmemb;
   char *new_ptr = realloc(s->ptr, new_len + 1);
   if (new_ptr == NULL) {
-    errno = ENOMEM;
     return 0; // cause curl to fail
   }
 
