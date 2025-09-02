@@ -17,7 +17,7 @@
 static char *read_file(const char *path, size_t *out_len) {
   FILE *f = fopen(path, "rb");
   if (!f) {
-    srun_log_error("Failed to open file: %s", path);
+    srun_log_error("Failed to open file: %s\n", path);
     return NULL;
   }
   fseek(f, 0, SEEK_END);
@@ -25,7 +25,7 @@ static char *read_file(const char *path, size_t *out_len) {
   fseek(f, 0, SEEK_SET);
   char *buf = malloc(len + 1);
   if (!buf) {
-    srun_log_error("Failed to allocate memory for file: %s", path);
+    srun_log_error("Failed to allocate memory for file: %s\n", path);
     fclose(f);
     return NULL;
   }
@@ -64,7 +64,7 @@ static void request(const_srun_handle handle, const char *url, http_event_handle
 
   esp_err_t err = esp_http_client_perform(client);
   if (err != ESP_OK) {
-    srun_log_error("HTTP GET request failed: %s", esp_err_to_name(err));
+    srun_log_error("HTTP GET request failed: %s\n", esp_err_to_name(err));
   }
 
   esp_http_client_cleanup(client);
