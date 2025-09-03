@@ -8,24 +8,27 @@ project(srun C)
 project(srun VERSION 1.0.0)
 
 set(SRUN_CRYPTO "openssl" CACHE STRING "The crypto library to use")
+set_property(CACHE SRUN_CRYPTO PROPERTY STRINGS "openssl" "mbedtls" "self")
 string(TOLOWER "${SRUN_CRYPTO}" SRUN_CRYPTO)
 
 set(CMAKE_C_STANDARD 11)
 add_executable(${PROJECT_NAME} srun.c main.c)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
-set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -pedantic -fsanitize=address,undefined -fstack-protector-all -fno-omit-frame-pointer -ggdb")
-if (LINUX)
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fsanitize=leak")
-endif ()
+# ---- Compiler options ----
+target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra)
 
-target_include_directories(${PROJECT_NAME} PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/platform"
+target_compile_options(${PROJECT_NAME} PRIVATE
+    $<$<CONFIG:Debug>:-pedantic -fsanitize=address,undefined -fstack-protector-all -fno-omit-frame-pointer -ggdb>
+    $<$<AND:$<CONFIG:Debug>,$<PLATFORM_ID:Linux>>:-fsanitize=leak>
+    $<$<CONFIG:Release>:-O3>
 )
 
-# find current Git revision
+target_include_directories(${PROJECT_NAME} PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/platform"
+)
+
+# ---- Git revision ----
 find_package(Git)
 if (GIT_FOUND)
     execute_process(
@@ -40,19 +43,14 @@ endif ()
 string(TIMESTAMP SRUN_BUILD_TIME "%Y-%m-%d %H:%M:%S")
 set(SRUN_VERSION "${CMAKE_PROJECT_VERSION}")
 
-if (SRUN_CONF_CACERT)
-    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/${SRUN_CONF_CACERT}" SRUN_CONF_CERT_PEM)
-    string(REPLACE "\n" "\\n" SRUN_CONF_CERT_PEM "${SRUN_CONF_CERT_PEM}")
-endif ()
+# ---- Config header ----
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/srun_config.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/srun_config.h"
+)
+target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
-if (NOT SRUN_CONF_USERNAME AND SRUN_CONF_PASSWORD)
-    message(WARNING "Cannot set password without username")
-    unset(SRUN_CONF_PASSWORD)
-endif ()
-
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/srun_config.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/srun_config.h")
-
-# libbsd
+# ---- libbsd ----
 if (NOT (APPLE OR BSD))
     find_library(LIBBSD_LIB NAMES bsd libbsd)
     find_path(LIBBSD_INCLUDE_DIRS bsd/readpassphrase.h)
@@ -65,18 +63,22 @@ if (NOT (APPLE OR BSD))
     endif ()
 endif ()
 
+# ---- libcurl ----
 find_package(CURL REQUIRED)
 target_link_libraries(${PROJECT_NAME} PRIVATE CURL::libcurl)
 target_sources(${PROJECT_NAME} PRIVATE platform/libcurl.c)
 
+# ---- cJSON ----
 find_package(cJSON REQUIRED)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CJSON_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${CJSON_LIBRARIES})
 target_sources(${PROJECT_NAME} PRIVATE platform/cjson.c)
 
+# ---- crypto (mbedtls / openssl / self) ----
 find_library(MbedCrypto_LIB mbedcrypto)
 find_path(MbedCrypto_INCLUDE_DIR mbedtls/md.h)
 find_package(OpenSSL COMPONENTS Crypto)
+
 if (MbedCrypto_LIB AND MbedCrypto_INCLUDE_DIR AND (NOT OpenSSL_FOUND OR SRUN_CRYPTO STREQUAL "mbedtls"))
     message(STATUS "Found MbedTLS: ${MbedCrypto_LIB}")
     target_include_directories(${PROJECT_NAME} PRIVATE ${MbedCrypto_INCLUDE_DIR})
@@ -89,7 +91,7 @@ elseif (OpenSSL_FOUND AND NOT (SRUN_CRYPTO STREQUAL "self"))
     target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::Crypto)
     target_sources(${PROJECT_NAME} PRIVATE platform/openssl.c)
 else ()
-    IF (NOT (SRUN_CRYPTO STREQUAL "self"))
+    if (NOT (SRUN_CRYPTO STREQUAL "self"))
         message(WARNING "Could not find crypto library: ${SRUN_CRYPTO}")
     endif ()
     message(STATUS "Using self-implemented crypto functions")
