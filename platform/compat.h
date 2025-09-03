@@ -7,17 +7,14 @@
 #ifndef __SRUN_PLATFORM_COMPAT_H__
 #define __SRUN_PLATFORM_COMPAT_H__
 
-// see asprintf(3)
+// see feature_test_macros(7)
+// strdup(3) and asprintf(3) require _GNU_SOURCE on Linux,
+// and _DARWIN_C_SOURCE on macOS
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
 #ifndef _DARWIN_C_SOURCE
 #define _DARWIN_C_SOURCE
-#endif
-
-// see strdup(3)
-#ifndef _XOPEN_SOURCE
-#define _XOPEN_SOURCE 600
 #endif
 
 #include <stdint.h>
