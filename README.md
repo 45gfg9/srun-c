@@ -138,6 +138,7 @@ ESP8266 has very limited resources. HTTPS requires some amount of RAM, and if yo
 
 - [ ] Test if `rad_user_dm` is sufficient for logout (need testers!)
 - [ ] Support for `srun-c` as a PlatformIO library
+- [ ] Support for statically-linked builds
 
 ## License
 

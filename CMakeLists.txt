@@ -12,7 +12,7 @@ set_property(CACHE SRUN_CRYPTO PROPERTY STRINGS "openssl" "mbedtls" "self")
 string(TOLOWER "${SRUN_CRYPTO}" SRUN_CRYPTO)
 
 set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_EXTENSIONS ON)
+set(CMAKE_C_EXTENSIONS OFF)
 add_executable(${PROJECT_NAME} srun.c main.c)
 
 # ---- Compiler options ----
