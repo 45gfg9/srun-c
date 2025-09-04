@@ -16,9 +16,10 @@ set(CMAKE_C_EXTENSIONS OFF)
 add_executable(${PROJECT_NAME} srun.c main.c)
 
 # ---- Compiler options ----
-target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra)
+target_compile_definitions(${PROJECT_NAME} PRIVATE _GNU_SOURCE)
 
 target_compile_options(${PROJECT_NAME} PRIVATE
+    -Wall -Wextra
     $<$<CONFIG:Debug>:-pedantic -fsanitize=address,undefined -fstack-protector-all -fno-omit-frame-pointer -ggdb>
     $<$<AND:$<CONFIG:Debug>,$<PLATFORM_ID:Linux>>:-fsanitize=leak>
     $<$<CONFIG:Release>:-O3>

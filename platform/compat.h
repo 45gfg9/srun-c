@@ -8,13 +8,9 @@
 #define __SRUN_PLATFORM_COMPAT_H__
 
 // see feature_test_macros(7)
-// strdup(3) and asprintf(3) require _GNU_SOURCE on Linux,
-// and _DARWIN_C_SOURCE on macOS
+// strdup(3) and asprintf(3) require _GNU_SOURCE
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
-#endif
-#ifndef _DARWIN_C_SOURCE
-#define _DARWIN_C_SOURCE
 #endif
 
 #include <stdint.h>
